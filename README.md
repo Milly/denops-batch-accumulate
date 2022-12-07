@@ -1,5 +1,6 @@
 # deno-denops-defer
 
+[![license:MIT](https://img.shields.io/github/license/Milly/deno-denops-defer?style=flat-square)](LICENSE)
 [![deno land](http://img.shields.io/badge/available%20on-deno.land/x/denops__defer-lightgrey.svg?logo=deno)](https://deno.land/x/denops_defer)
 
 `defer` resolves combined multiple denops calls like [`gather`][].
