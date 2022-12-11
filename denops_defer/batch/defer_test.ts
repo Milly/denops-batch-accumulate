@@ -12,7 +12,8 @@ import type { Denops } from "https://deno.land/x/denops_core@v3.2.0/mod.ts";
 import {
   stridx,
   strlen,
-} from "https://deno.land/x/denops_std@v3.9.1/function/_generated.ts";
+} from "https://deno.land/x/denops_std@v3.10.1/function/_generated.ts";
+import { globals } from "https://deno.land/x/denops_std@v3.10.1/variable/mod.ts";
 import { _internal, defer, DeferHelper } from "./defer.ts";
 
 Deno.test("[defer]", async (t) => {
@@ -235,6 +236,115 @@ Deno.test("[defer]", async (t) => {
         assertSpyCallArgs(denops_batch_stub, 0, [["strlen", "foo"]]);
         assertSpyCallArgs(denops_batch_stub, 1, [["stridx", "bar", "a", 42]]);
         assertSpyCallArgs(denops_batch_stub, 2, [["strlen", "baz"]]);
+      });
+
+      denops_batch_stub.restore();
+    }
+
+    {
+      const denops_batch_stub = stubBatch(0, 42);
+
+      await t.step("returns result dependent on cmd", async () => {
+        const actual = await defer(denops_mock, async (helper) => {
+          await helper.cmd("let g:foo = l:val", { val: 42 });
+          const result = await globals.get(helper, "foo");
+          return result;
+        });
+        assertEquals(actual, 42);
+        assertSpyCalls(denops_batch_stub, 1);
+        assertSpyCallArgs(denops_batch_stub, 0, [
+          ["denops#api#cmd", "let g:foo = l:val", { val: 42 }],
+          ["denops#api#eval", "exists(n) ? g:foo : v", { n: "g:foo", v: null }],
+        ]);
+      });
+
+      denops_batch_stub.restore();
+    }
+
+    {
+      const denops_batch_stub = stubBatch(0, 42, 42);
+
+      await t.step("returns result dependent on previous Promise", async () => {
+        const actual = await defer(denops_mock, (helper) => {
+          return [
+            (async () => {
+              await helper.cmd("let g:foo = l:val", { val: 42 });
+              const result = await globals.get(helper, "foo");
+              return result;
+            })(),
+            helper.eval("g:foo"),
+          ];
+        });
+        assertEquals(actual, [42, 42]);
+        assertSpyCalls(denops_batch_stub, 1);
+        assertSpyCallArgs(denops_batch_stub, 0, [
+          ["denops#api#cmd", "let g:foo = l:val", { val: 42 }],
+          ["denops#api#eval", "g:foo", {}],
+          ["denops#api#eval", "exists(n) ? g:foo : v", { n: "g:foo", v: null }],
+        ]);
+      });
+
+      denops_batch_stub.restore();
+    }
+
+    {
+      const denops_batch_stub = stub(
+        denops_mock,
+        "batch",
+        () => Promise.reject(new Error("foobar error")),
+      );
+
+      await t.step("throws error of call", async () => {
+        await assertRejects(
+          async () => {
+            await defer(denops_mock, async (helper) => {
+              await helper.call("strlen", "foo");
+            });
+          },
+          Error,
+          "foobar error",
+        );
+      });
+
+      denops_batch_stub.restore();
+    }
+
+    {
+      const denops_batch_stub = stub(
+        denops_mock,
+        "batch",
+        () => Promise.reject(new Error("foobar error")),
+      );
+
+      await t.step("throws error of cmd", async () => {
+        await assertRejects(
+          async () => {
+            await defer(denops_mock, async (helper) => {
+              await helper.cmd("foo");
+            });
+          },
+          Error,
+          "foobar error",
+        );
+      });
+
+      denops_batch_stub.restore();
+    }
+
+    {
+      const denops_batch_stub = stubBatch(3);
+
+      await t.step("throws error after resolved", async () => {
+        await assertRejects(
+          async () => {
+            await defer(denops_mock, async (helper) => {
+              await strlen(helper, "foo");
+              throw new Error("foobar error");
+            });
+          },
+          Error,
+          "foobar error",
+        );
       });
 
       denops_batch_stub.restore();
