@@ -71,10 +71,9 @@ class DeferHelper implements Denops {
     throw new Error("The 'batch' method is not available on DeferHelper.");
   }
 
-  cmd(cmd: string, ctx: Context = {}): Promise<void> {
+  async cmd(cmd: string, ctx: Context = {}): Promise<void> {
     this.#ensureAvaiable();
-    this.call("denops#api#cmd", cmd, ctx);
-    return Promise.resolve();
+    await this.call("denops#api#cmd", cmd, ctx);
   }
 
   eval(expr: string, ctx: Context = {}): Promise<unknown> {
