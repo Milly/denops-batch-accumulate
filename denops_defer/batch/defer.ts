@@ -6,9 +6,11 @@ import type {
   Meta,
 } from "https://deno.land/x/denops_core@v3.2.0/mod.ts";
 
+type Call = [string, ...unknown[]];
+
 class DeferHelper implements Denops {
   #denops: Denops;
-  #calls: [string, ...unknown[]][] = [];
+  #calls: Call[] = [];
   #results: unknown[] = [];
   #closed = false;
   #resolved = deferred();
@@ -17,7 +19,7 @@ class DeferHelper implements Denops {
     this.#denops = denops;
   }
 
-  static getCalls(helper: DeferHelper): [string, ...unknown[]][] {
+  static getCalls(helper: DeferHelper): Call[] {
     return helper.#calls.slice(helper.#results.length);
   }
 
@@ -107,8 +109,17 @@ export async function defer<Executor extends (helper: DeferHelper) => unknown>(
   const helper = new DeferHelper(denops);
   const resolveCalls = async (obj: unknown) => {
     for (;;) {
-      const calls = DeferHelper.getCalls(helper);
-      if (calls.length > 0) {
+      for (;;) {
+        let prevCallsCount = -1;
+        let calls: Call[] = [];
+        while (calls.length > prevCallsCount) {
+          await Promise.resolve(); // wait for microtask queue to clear
+          prevCallsCount = calls.length;
+          calls = DeferHelper.getCalls(helper);
+        }
+        if (calls.length === 0) {
+          break;
+        }
         const results = await denops.batch(...calls);
         DeferHelper.addResults(helper, results);
       }
