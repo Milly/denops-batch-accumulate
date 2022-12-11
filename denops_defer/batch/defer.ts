@@ -1,4 +1,4 @@
-import { deferred, delay } from "https://deno.land/std@0.166.0/async/mod.ts";
+import { debounce, deferred } from "https://deno.land/std@0.166.0/async/mod.ts";
 import type {
   Context,
   Denops,
@@ -12,11 +12,18 @@ class DeferHelper implements Denops {
   #denops: Denops;
   #calls: Call[] = [];
   #results: unknown[] = [];
+  #errors: unknown[] = [];
   #closed = false;
-  #resolved = deferred();
+  #resolved = deferred<void>();
+  #called = deferred<void>();
+  #onCalled = debounce(() => this.#called.resolve(), 0);
 
   constructor(denops: Denops) {
     this.#denops = denops;
+  }
+
+  static waitCalled(helper: DeferHelper): Promise<void> {
+    return helper.#called;
   }
 
   static getCalls(helper: DeferHelper): Call[] {
@@ -25,16 +32,20 @@ class DeferHelper implements Denops {
 
   static addResults(helper: DeferHelper, results: unknown[]): void {
     helper.#results.splice(Infinity, 0, ...results);
-    const lastResolved = helper.#resolved;
-    helper.#resolved = deferred();
-    lastResolved.resolve();
+    if (helper.#results.length === helper.#calls.length) {
+      const lastResolved = helper.#resolved;
+      helper.#resolved = deferred();
+      helper.#called = deferred();
+      lastResolved.resolve();
+    }
+  }
+
+  static getErrors(helper: DeferHelper): unknown[] {
+    return helper.#errors;
   }
 
   static close(helper: DeferHelper): void {
     helper.#closed = true;
-    if (helper.#calls.length > helper.#results.length) {
-      helper.#resolved.reject(new Error("DeferHelper closed"));
-    }
   }
 
   get name(): string {
@@ -65,6 +76,7 @@ class DeferHelper implements Denops {
     this.#ensureAvaiable();
     const callIndex = this.#calls.length;
     this.#calls.push([fn, ...args]);
+    this.#onCalled();
     await this.#resolved;
     return this.#results![callIndex];
   }
@@ -73,9 +85,11 @@ class DeferHelper implements Denops {
     throw new Error("The 'batch' method is not available on DeferHelper.");
   }
 
-  async cmd(cmd: string, ctx: Context = {}): Promise<void> {
+  cmd(cmd: string, ctx: Context = {}): Promise<void> {
     this.#ensureAvaiable();
-    await this.call("denops#api#cmd", cmd, ctx);
+    this.call("denops#api#cmd", cmd, ctx)
+      .catch((reason) => void this.#errors.push(reason));
+    return Promise.resolve();
   }
 
   eval(expr: string, ctx: Context = {}): Promise<unknown> {
@@ -102,42 +116,28 @@ export async function defer<Executor extends (helper: DeferHelper) => unknown>(
   denops: Denops,
   executor: Executor,
 ): Promise<AwaitedDeep<ReturnType<Executor>>> {
-  const EXECUTOR_WAIT = 50;
-  const TIMEOUT = { timeout: null };
-  const abortController = new AbortController();
-  const { signal } = abortController;
+  const aborter = deferred<void>();
   const helper = new DeferHelper(denops);
-  const resolveCalls = async (obj: unknown) => {
+  const resolveCalls = async () => {
     for (;;) {
-      for (;;) {
-        let prevCallsCount = -1;
-        let calls: Call[] = [];
-        while (calls.length > prevCallsCount) {
-          await Promise.resolve(); // wait for microtask queue to clear
-          prevCallsCount = calls.length;
-          calls = DeferHelper.getCalls(helper);
-        }
-        if (calls.length === 0) {
-          break;
-        }
-        const results = await denops.batch(...calls);
-        DeferHelper.addResults(helper, results);
-      }
-      const resultOrTimeout = await Promise.race([
-        obj,
-        delay(EXECUTOR_WAIT, { signal }).then(() => TIMEOUT),
-      ]);
-      if (resultOrTimeout !== TIMEOUT) {
-        return resultOrTimeout;
-      }
+      await Promise.race([DeferHelper.waitCalled(helper), aborter]);
+      const errors = DeferHelper.getErrors(helper);
+      if (errors.length > 0) throw errors[0];
+      const calls = DeferHelper.getCalls(helper);
+      if (calls.length === 0) break;
+      const results = await denops.batch(...calls);
+      DeferHelper.addResults(helper, results);
     }
   };
   try {
-    const result = await resolveCalls(executor(helper));
-    await resolveCalls(resolveResult(result));
+    const resolver = resolveCalls();
+    const result = await Promise.race([resolver, executor(helper)]);
+    await Promise.race([resolver, resolveResult(result)]);
+    aborter.resolve();
+    await resolver;
     return result as AwaitedDeep<ReturnType<Executor>>;
   } finally {
-    abortController.abort();
+    aborter.resolve();
     DeferHelper.close(helper);
   }
 }
