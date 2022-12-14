@@ -1,0 +1,64 @@
+name: Test
+
+env:
+  DENO_DIR: ".deno"
+  REPO_DIR: "repo"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.md"
+      - "**.ts"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "**.md"
+      - "**.ts"
+      - ".github/workflows/test.yml"
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail {0}
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+        version:
+          - "1.27.0"
+          - "1.x"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: ${{ env.REPO_DIR }}
+      - uses: denoland/setup-deno@v1
+        id: setup-deno
+        with:
+          deno-version: "${{ matrix.version }}"
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.DENO_DIR }}
+          key: ${{ runner.os }}-deno-${{ steps.setup-deno.outputs.deno-version }}-${{ hashFiles('**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-deno-${{ steps.setup-deno.outputs.deno-version }}-
+            ${{ runner.os }}-deno-
+      - name: Lint check
+        run: deno lint
+        working-directory: ${{ env.REPO_DIR }}
+        env:
+          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
+      - name: Format check
+        run: deno fmt --check
+        working-directory: ${{ env.REPO_DIR }}
+        env:
+          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
+      - name: Test
+        run: deno test
+        working-directory: ${{ env.REPO_DIR }}
+        env:
+          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
