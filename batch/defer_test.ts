@@ -9,6 +9,7 @@ import {
   stub,
 } from "https://deno.land/std@0.167.0/testing/mock.ts";
 import type { Denops } from "https://deno.land/x/denops_core@v3.3.0/mod.ts";
+import { batch, gather } from "https://deno.land/x/denops_std@v3.12.0/batch/mod.ts";
 import {
   stridx,
   strlen,
@@ -123,7 +124,7 @@ Deno.test("[defer] defer", async (t) => {
         ["strlen", "baz"],
       ]);
     },
-    "returns nested": async () => {
+    "returns nested Map, Set, Array, Object": async () => {
       denops_batch_stub = stubBatch(42, 123, 39, 244, 8);
       const actual = await defer(denops_mock, (helper) => {
         return new Map<unknown, unknown>([
@@ -233,6 +234,71 @@ Deno.test("[defer] defer", async (t) => {
         ["denops#api#cmd", "let g:foo = l:val", { val: 42 }],
         ["denops#api#eval", "g:foo", {}],
         ["denops#api#eval", "exists(n) ? g:foo : v", { n: "g:foo", v: null }],
+      ]);
+    },
+    "returns nested defer": async () => {
+      denops_batch_stub = stubBatch(3, 4, 1, 2);
+      const actual = await defer(denops_mock, (helper) => {
+        return {
+          a: strlen(helper, "foo") as Promise<number>,
+          b: defer(helper, (secondHelper) => {
+            return [
+              stridx(secondHelper, "bar", "a") as Promise<number>,
+              stridx(secondHelper, "baz", "z") as Promise<number>,
+            ];
+          }),
+          c: strlen(helper, "quux") as Promise<number>,
+        };
+      });
+      assertEquals(actual, {a: 3, b: [1, 2], c: 4});
+      assertSpyCalls(denops_batch_stub, 1);
+      assertSpyCallArgs(denops_batch_stub, 0, [
+        ["strlen", "foo"],
+        ["strlen", "quux"],
+        ["stridx", "bar", "a"],
+        ["stridx", "baz", "z"],
+      ]);
+    },
+    "returns nested gather": async () => {
+      denops_batch_stub = stubBatch(3, 4, 1, 2);
+      const actual = await defer(denops_mock, (helper) => {
+        return {
+          a: strlen(helper, "foo") as Promise<number>,
+          b: gather(helper, async (gatherHelper) => {
+            await stridx(gatherHelper, "bar", "a");
+            await stridx(gatherHelper, "baz", "z");
+          }) as Promise<number[]>,
+          c: strlen(helper, "quux") as Promise<number>,
+        };
+      });
+      assertEquals(actual, {a: 3, b: [1, 2], c: 4});
+      assertSpyCalls(denops_batch_stub, 1);
+      assertSpyCallArgs(denops_batch_stub, 0, [
+        ["strlen", "foo"],
+        ["strlen", "quux"],
+        ["stridx", "bar", "a"],
+        ["stridx", "baz", "z"],
+      ]);
+    },
+    "returns nested batch": async () => {
+      denops_batch_stub = stubBatch(3, 4, 1, 2);
+      const actual = await defer(denops_mock, (helper) => {
+        return {
+          a: strlen(helper, "foo") as Promise<number>,
+          b: batch(helper, async (gatherHelper) => {
+            await stridx(gatherHelper, "bar", "a");
+            await stridx(gatherHelper, "baz", "z");
+          }),
+          c: strlen(helper, "quux") as Promise<number>,
+        };
+      });
+      assertEquals(actual, {a: 3, b: undefined, c: 4});
+      assertSpyCalls(denops_batch_stub, 1);
+      assertSpyCallArgs(denops_batch_stub, 0, [
+        ["strlen", "foo"],
+        ["strlen", "quux"],
+        ["stridx", "bar", "a"],
+        ["stridx", "baz", "z"],
       ]);
     },
     "throws error of call": async () => {
@@ -472,16 +538,18 @@ Deno.test("[defer] DeferHelper", async (t) => {
     });
   });
 
-  await t.step("batch", async () => {
-    await t.step("throws error", async () => {
+  await t.step("batch", async (t) => {
+    await t.step("throws error if called outside of 'defer'", async () => {
+      let helper_saved = null as unknown as DeferHelper;
+      await defer(denops_mock, (helper) => {
+        helper_saved = helper;
+      });
       await assertRejects(
         async () => {
-          await defer(denops_mock, async (helper) => {
-            await helper.batch(["strlen", "foo"]);
-          });
+          await helper_saved.batch(["strlen", "foo"]);
         },
         Error,
-        "The 'batch' method is not available on DeferHelper.",
+        "DeferHelper instance is not available outside of 'defer' block",
       );
     });
   });

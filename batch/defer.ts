@@ -31,7 +31,7 @@ class DeferHelper implements Denops {
   }
 
   static addResults(helper: DeferHelper, results: unknown[]): void {
-    helper.#results.splice(Infinity, 0, ...results);
+    helper.#results.push(...results);
     if (helper.#results.length === helper.#calls.length) {
       const lastResolved = helper.#resolved;
       helper.#resolved = deferred();
@@ -78,11 +78,16 @@ class DeferHelper implements Denops {
     this.#calls.push([fn, ...args]);
     this.#onCalled();
     await this.#resolved;
-    return this.#results![callIndex];
+    return this.#results[callIndex];
   }
 
-  batch(..._calls: [string, ...unknown[]][]): Promise<unknown[]> {
-    throw new Error("The 'batch' method is not available on DeferHelper.");
+  async batch(...calls: Call[]): Promise<unknown[]> {
+    this.#ensureAvaiable();
+    const callIndex = this.#calls.length;
+    this.#calls.push(...calls);
+    this.#onCalled();
+    await this.#resolved;
+    return this.#results.slice(callIndex, callIndex + calls.length);
   }
 
   cmd(cmd: string, ctx: Context = {}): Promise<void> {
