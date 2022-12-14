@@ -410,80 +410,90 @@ Deno.test("[defer] defer resolves", async (t) => {
 });
 
 Deno.test("[defer] DeferHelper", async (t) => {
-  await t.step("call", async () => {
-    let helper_saved = null as unknown as DeferHelper;
-    await defer(denops_mock, (helper) => {
-      helper_saved = helper;
+  await t.step("call", async (t) => {
+    await t.step("throws error if called outside of 'defer'", async () => {
+      let helper_saved = null as unknown as DeferHelper;
+      await defer(denops_mock, (helper) => {
+        helper_saved = helper;
+      });
+      await assertRejects(
+        async () => {
+          await helper_saved.call("strlen", "foo");
+        },
+        Error,
+        "DeferHelper instance is not available outside of 'defer' block",
+      );
     });
-    await assertRejects(
-      async () => {
-        await helper_saved.call("strlen", "foo");
-      },
-      Error,
-      "DeferHelper instance is not available outside of 'defer' block",
-    );
   });
 
-  await t.step("cmd", async () => {
-    let helper_saved = null as unknown as DeferHelper;
-    await defer(denops_mock, (helper) => {
-      helper_saved = helper;
+  await t.step("cmd", async (t) => {
+    await t.step("throws error if called outside of 'defer'", async () => {
+      let helper_saved = null as unknown as DeferHelper;
+      await defer(denops_mock, (helper) => {
+        helper_saved = helper;
+      });
+      await assertRejects(
+        async () => {
+          await helper_saved.cmd("echomsg 'foo'");
+        },
+        Error,
+        "DeferHelper instance is not available outside of 'defer' block",
+      );
     });
-    await assertRejects(
-      async () => {
-        await helper_saved.cmd("echomsg 'foo'");
-      },
-      Error,
-      "DeferHelper instance is not available outside of 'defer' block",
-    );
   });
 
-  await t.step("eval", async () => {
-    let helper_saved = null as unknown as DeferHelper;
-    await defer(denops_mock, (helper) => {
-      helper_saved = helper;
+  await t.step("eval", async (t) => {
+    await t.step("throws error if called outside of 'defer'", async () => {
+      let helper_saved = null as unknown as DeferHelper;
+      await defer(denops_mock, (helper) => {
+        helper_saved = helper;
+      });
+      await assertRejects(
+        async () => {
+          await helper_saved.eval("42 + 123");
+        },
+        Error,
+        "DeferHelper instance is not available outside of 'defer' block",
+      );
     });
-    await assertRejects(
-      async () => {
-        await helper_saved.eval("42 + 123");
-      },
-      Error,
-      "DeferHelper instance is not available outside of 'defer' block",
-    );
   });
 
-  await t.step("redraw", async () => {
-    await assertRejects(
-      async () => {
-        await defer(denops_mock, async (helper) => {
-          await helper.redraw();
-        });
-      },
-      Error,
-      "The 'redraw' method is not available on DeferHelper.",
-    );
+  await t.step("redraw", async (t) => {
+    await t.step("throws error", async () => {
+      await assertRejects(
+        async () => {
+          await defer(denops_mock, async (helper) => {
+            await helper.redraw();
+          });
+        },
+        Error,
+        "The 'redraw' method is not available on DeferHelper.",
+      );
+    });
   });
 
   await t.step("batch", async () => {
-    await assertRejects(
-      async () => {
-        await defer(denops_mock, async (helper) => {
-          await helper.batch(["strlen", "foo"]);
-        });
-      },
-      Error,
-      "The 'batch' method is not available on DeferHelper.",
-    );
+    await t.step("throws error", async () => {
+      await assertRejects(
+        async () => {
+          await defer(denops_mock, async (helper) => {
+            await helper.batch(["strlen", "foo"]);
+          });
+        },
+        Error,
+        "The 'batch' method is not available on DeferHelper.",
+      );
+    });
   });
 
-  {
+  await t.step("dispatch", async (t) => {
     const denops_dispatch_stub = stub(
       denops_mock,
       "dispatch",
       () => Promise.resolve(),
     );
 
-    await t.step("dispatch", async () => {
+    await t.step("calls 'denops.dispatch'", async () => {
       await defer(denops_mock, async (helper) => {
         await helper.dispatch("plug", "method", "foo");
       });
@@ -492,5 +502,5 @@ Deno.test("[defer] DeferHelper", async (t) => {
     });
 
     denops_dispatch_stub.restore();
-  }
+  });
 });
