@@ -14,7 +14,7 @@ import {
   strlen,
 } from "https://deno.land/x/denops_std@v3.12.0/function/_generated.ts";
 import { globals } from "https://deno.land/x/denops_std@v3.12.0/variable/mod.ts";
-import { _internal, defer, DeferHelper } from "./defer.ts";
+import { defer, DeferHelper } from "./defer.ts";
 
 const denops_mock = {
   batch() {},
@@ -28,26 +28,28 @@ const stubBatch = (...values: unknown[]) =>
     (...calls) => Promise.resolve(values.splice(0, calls.length) as unknown[]),
   );
 
-Deno.test("[defer] defer", async (t) => {
-  {
-    const denops_batch_stub = stubBatch(42);
+const resolve = <T = unknown>(value: T) => Promise.resolve(value);
 
-    await t.step("returns one", async () => {
+Deno.test("[defer] defer", async (t) => {
+  let denops_batch_stub: ReturnType<typeof stub<Denops, "batch">> | undefined;
+
+  const afterEach = () => {
+    denops_batch_stub?.restore();
+    denops_batch_stub = undefined;
+  };
+
+  const steps = {
+    "returns one": async () => {
+      denops_batch_stub = stubBatch(42);
       const actual = await defer(denops_mock, (helper) => {
         return strlen(helper, "foo");
       });
       assertEquals(actual, 42);
       assertSpyCalls(denops_batch_stub, 1);
       assertSpyCallArgs(denops_batch_stub, 0, [["strlen", "foo"]]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns Object", async () => {
+    },
+    "returns Object": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         return {
           a: strlen(helper, "foo"),
@@ -62,15 +64,9 @@ Deno.test("[defer] defer", async (t) => {
         ["stridx", "bar", "a"],
         ["strlen", "baz"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns Array", async () => {
+    },
+    "returns Array": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         return [
           strlen(helper, "foo"),
@@ -85,15 +81,9 @@ Deno.test("[defer] defer", async (t) => {
         ["stridx", "bar", "a"],
         ["strlen", "baz"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns Set", async () => {
+    },
+    "returns Set": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         return new Set([
           strlen(helper, "foo"),
@@ -108,15 +98,9 @@ Deno.test("[defer] defer", async (t) => {
         ["stridx", "bar", "a"],
         ["strlen", "baz"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns Map", async () => {
+    },
+    "returns Map": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         return new Map<unknown, unknown>([
           [strlen(helper, "foo"), 55.5],
@@ -138,15 +122,9 @@ Deno.test("[defer] defer", async (t) => {
         ["stridx", "bar", "a"],
         ["strlen", "baz"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39, 244, 8);
-
-    await t.step("returns nested", async () => {
+    },
+    "returns nested": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39, 244, 8);
       const actual = await defer(denops_mock, (helper) => {
         return new Map<unknown, unknown>([
           [
@@ -182,15 +160,9 @@ Deno.test("[defer] defer", async (t) => {
         ["strlen", "qux"],
         ["strlen", "quux"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns chained", async () => {
+    },
+    "returns chained Promise": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         return (strlen(helper, "foo") as Promise<number>).then((value) => {
           return [
@@ -206,15 +178,9 @@ Deno.test("[defer] defer", async (t) => {
         ["stridx", "bar", "a", 42],
         ["strlen", "baz"],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(42, 123, 39);
-
-    await t.step("returns mixed Promise", async () => {
+    },
+    "returns mixed Promise": async () => {
+      denops_batch_stub = stubBatch(42, 123, 39);
       const actual = await defer(denops_mock, (helper) => {
         const result = Promise.all([
           strlen(helper, "foo") as Promise<number>,
@@ -234,15 +200,9 @@ Deno.test("[defer] defer", async (t) => {
       assertSpyCallArgs(denops_batch_stub, 0, [["strlen", "foo"]]);
       assertSpyCallArgs(denops_batch_stub, 1, [["stridx", "bar", "a", 42]]);
       assertSpyCallArgs(denops_batch_stub, 2, [["strlen", "baz"]]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(0, 42);
-
-    await t.step("returns result dependent on cmd", async () => {
+    },
+    "returns result dependent on cmd": async () => {
+      denops_batch_stub = stubBatch(0, 42);
       const actual = await defer(denops_mock, async (helper) => {
         await helper.cmd("let g:foo = l:val", { val: 42 });
         const result = await globals.get(helper, "foo");
@@ -254,15 +214,9 @@ Deno.test("[defer] defer", async (t) => {
         ["denops#api#cmd", "let g:foo = l:val", { val: 42 }],
         ["denops#api#eval", "exists(n) ? g:foo : v", { n: "g:foo", v: null }],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(0, 42, 42);
-
-    await t.step("returns result dependent on previous Promise", async () => {
+    },
+    "returns result dependent on previous Promise": async () => {
+      denops_batch_stub = stubBatch(0, 42, 42);
       const actual = await defer(denops_mock, (helper) => {
         return [
           (async () => {
@@ -280,19 +234,13 @@ Deno.test("[defer] defer", async (t) => {
         ["denops#api#eval", "g:foo", {}],
         ["denops#api#eval", "exists(n) ? g:foo : v", { n: "g:foo", v: null }],
       ]);
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stub(
-      denops_mock,
-      "batch",
-      () => Promise.reject(new Error("foobar error")),
-    );
-
-    await t.step("throws error of call", async () => {
+    },
+    "throws error of call": async () => {
+      denops_batch_stub = stub(
+        denops_mock,
+        "batch",
+        () => Promise.reject(new Error("foobar error")),
+      );
       await assertRejects(
         async () => {
           await defer(denops_mock, async (helper) => {
@@ -302,19 +250,13 @@ Deno.test("[defer] defer", async (t) => {
         Error,
         "foobar error",
       );
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stub(
-      denops_mock,
-      "batch",
-      () => Promise.reject(new Error("foobar error")),
-    );
-
-    await t.step("throws error of cmd", async () => {
+    },
+    "throws error of cmd": async () => {
+      denops_batch_stub = stub(
+        denops_mock,
+        "batch",
+        () => Promise.reject(new Error("foobar error")),
+      );
       await assertRejects(
         async () => {
           await defer(denops_mock, async (helper) => {
@@ -324,15 +266,9 @@ Deno.test("[defer] defer", async (t) => {
         Error,
         "foobar error",
       );
-    });
-
-    denops_batch_stub.restore();
-  }
-
-  {
-    const denops_batch_stub = stubBatch(3);
-
-    await t.step("throws error after resolved", async () => {
+    },
+    "throws error after resolved": async () => {
+      denops_batch_stub = stubBatch(3);
       await assertRejects(
         async () => {
           await defer(denops_mock, async (helper) => {
@@ -343,26 +279,28 @@ Deno.test("[defer] defer", async (t) => {
         Error,
         "foobar error",
       );
-    });
+    },
+  };
 
-    denops_batch_stub.restore();
+  for (const [name, proc] of Object.entries(steps)) {
+    await t.step(name, proc);
+    afterEach();
   }
 });
 
-Deno.test("[defer] resolveResult", async (t) => {
-  const resolve = <T = unknown>(value: T) => Promise.resolve(value);
-
+Deno.test("[defer] defer resolves", async (t) => {
   await t.step("Primitive", async () => {
     assertEquals(
-      await _internal.resolveResult(resolve(42)),
+      await defer(denops_mock, () => resolve(42)),
       42,
     );
   });
 
   await t.step("Primitive wrapper object", async () => {
     assertEquals(
-      await _internal.resolveResult(
-        Object.assign(123, { foo: resolve("bar") }),
+      await defer(
+        denops_mock,
+        () => Object.assign(123, { foo: resolve("bar") }),
       ),
       Object.assign(123, { foo: "bar" }),
     );
@@ -370,24 +308,25 @@ Deno.test("[defer] resolveResult", async (t) => {
 
   await t.step("Object", async () => {
     assertEquals(
-      await _internal.resolveResult({ foo: resolve("bar"), qux: 123 }),
+      await defer(denops_mock, () => ({ foo: resolve("bar"), qux: 123 })),
       { foo: "bar", qux: 123 },
     );
   });
 
   await t.step("Array", async () => {
     assertEquals(
-      await _internal.resolveResult([42, resolve("foo")]),
+      await defer(denops_mock, () => [42, resolve("foo")]),
       [42, "foo"],
     );
   });
 
   await t.step("Array extended", async () => {
     assertEquals(
-      await _internal.resolveResult(Object.assign(
-        [42, resolve("foo")],
-        { bar: resolve(123) },
-      )),
+      await defer(denops_mock, () =>
+        Object.assign(
+          [42, resolve("foo")],
+          { bar: resolve(123) },
+        )),
       Object.assign(
         [42, "foo"],
         { bar: 123 },
@@ -397,17 +336,18 @@ Deno.test("[defer] resolveResult", async (t) => {
 
   await t.step("Set", async () => {
     assertEquals(
-      await _internal.resolveResult(new Set([42, resolve(123)])),
+      await defer(denops_mock, () => new Set([42, resolve(123)])),
       new Set([42, 123]),
     );
   });
 
   await t.step("Set extended", async () => {
     assertEquals(
-      await _internal.resolveResult(Object.assign(
-        new Set([42, resolve(123)]),
-        { foo: resolve("bar") },
-      )),
+      await defer(denops_mock, () =>
+        Object.assign(
+          new Set([42, resolve(123)]),
+          { foo: resolve("bar") },
+        )),
       Object.assign(
         new Set([42, 123]),
         { foo: "bar" },
@@ -417,24 +357,25 @@ Deno.test("[defer] resolveResult", async (t) => {
 
   await t.step("Map values", async () => {
     assertEquals(
-      await _internal.resolveResult(new Map([["foo", resolve(42)]])),
+      await defer(denops_mock, () => new Map([["foo", resolve(42)]])),
       new Map([["foo", 42]]),
     );
   });
 
   await t.step("Map keys", async () => {
     assertEquals(
-      await _internal.resolveResult(new Map([[resolve("foo"), 42]])),
+      await defer(denops_mock, () => new Map([[resolve("foo"), 42]])),
       new Map([["foo", 42]]),
     );
   });
 
   await t.step("Map extended", async () => {
     assertEquals(
-      await _internal.resolveResult(Object.assign(
-        new Map([["foo", resolve(42)]]),
-        { foo: resolve("bar") },
-      )),
+      await defer(denops_mock, () =>
+        Object.assign(
+          new Map([["foo", resolve(42)]]),
+          { foo: resolve("bar") },
+        )),
       Object.assign(
         new Map([["foo", 42]]),
         { foo: "bar" },
@@ -444,7 +385,7 @@ Deno.test("[defer] resolveResult", async (t) => {
 
   await t.step("nested", async () => {
     assertEquals(
-      await _internal.resolveResult([
+      await defer(denops_mock, () => [
         {
           foo: new Set([
             new Map([

@@ -214,7 +214,3 @@ type AwaitedObject<T extends AnyObject> = {
 };
 
 export type { DeferHelper };
-export const _internal = {
-  DeferHelper,
-  resolveResult,
-};
