@@ -1,19 +1,19 @@
-import { delay } from "https://deno.land/std@0.166.0/async/mod.ts";
+import { delay } from "https://deno.land/std@0.167.0/async/mod.ts";
 import {
   assertEquals,
   assertRejects,
-} from "https://deno.land/std@0.166.0/testing/asserts.ts";
+} from "https://deno.land/std@0.167.0/testing/asserts.ts";
 import {
   assertSpyCallArgs,
   assertSpyCalls,
   stub,
-} from "https://deno.land/std@0.166.0/testing/mock.ts";
-import type { Denops } from "https://deno.land/x/denops_core@v3.2.0/mod.ts";
+} from "https://deno.land/std@0.167.0/testing/mock.ts";
+import type { Denops } from "https://deno.land/x/denops_core@v3.3.0/mod.ts";
 import {
   stridx,
   strlen,
-} from "https://deno.land/x/denops_std@v3.10.1/function/_generated.ts";
-import { globals } from "https://deno.land/x/denops_std@v3.10.1/variable/mod.ts";
+} from "https://deno.land/x/denops_std@v3.12.0/function/_generated.ts";
+import { globals } from "https://deno.land/x/denops_std@v3.12.0/variable/mod.ts";
 import { _internal, defer, DeferHelper } from "./defer.ts";
 
 const denops_mock = {
