@@ -22,26 +22,15 @@ class DeferHelper implements Denops {
     this.#denops = denops;
   }
 
-  static waitCalled(helper: DeferHelper): Promise<void> {
-    return helper.#called;
-  }
-
-  static getCalls(helper: DeferHelper): Call[] {
-    return helper.#calls.slice(helper.#results.length);
-  }
-
-  static addResults(helper: DeferHelper, results: unknown[]): void {
-    helper.#results.push(...results);
-    if (helper.#results.length === helper.#calls.length) {
-      const lastResolved = helper.#resolved;
-      helper.#resolved = deferred();
-      helper.#called = deferred();
-      lastResolved.resolve();
-    }
-  }
-
-  static getErrors(helper: DeferHelper): unknown[] {
-    return helper.#errors;
+  static getCallsResolver(helper: DeferHelper) {
+    const willStop = deferred<void>();
+    const resolver = helper.#resolveCalls(willStop);
+    return Object.assign(
+      resolver,
+      {
+        stop: () => willStop.resolve(),
+      },
+    );
   }
 
   static close(helper: DeferHelper): void {
@@ -112,6 +101,37 @@ class DeferHelper implements Denops {
       );
     }
   }
+
+  #ensureNoErrors(): void {
+    if (this.#errors.length > 0) {
+      throw this.#errors[0];
+    }
+  }
+
+  #getCalls(): Call[] {
+    return this.#calls.slice(this.#results.length);
+  }
+
+  #addResults(results: unknown[]): void {
+    this.#results.push(...results);
+    if (this.#results.length === this.#calls.length) {
+      const lastResolved = this.#resolved;
+      this.#resolved = deferred();
+      this.#called = deferred();
+      lastResolved.resolve();
+    }
+  }
+
+  async #resolveCalls(willStop: Promise<void>): Promise<void> {
+    for (;;) {
+      await Promise.race([this.#called, willStop]);
+      this.#ensureNoErrors();
+      const calls = this.#getCalls();
+      if (calls.length === 0) break;
+      const results = await this.#denops.batch(...calls);
+      this.#addResults(results);
+    }
+  }
 }
 
 /**
@@ -121,28 +141,22 @@ export async function defer<Executor extends (helper: DeferHelper) => unknown>(
   denops: Denops,
   executor: Executor,
 ): Promise<AwaitedDeep<ReturnType<Executor>>> {
-  const aborter = deferred<void>();
   const helper = new DeferHelper(denops);
-  const resolveCalls = async () => {
-    for (;;) {
-      await Promise.race([DeferHelper.waitCalled(helper), aborter]);
-      const errors = DeferHelper.getErrors(helper);
-      if (errors.length > 0) throw errors[0];
-      const calls = DeferHelper.getCalls(helper);
-      if (calls.length === 0) break;
-      const results = await denops.batch(...calls);
-      DeferHelper.addResults(helper, results);
-    }
-  };
   try {
-    const resolver = resolveCalls();
-    const result = await Promise.race([resolver, executor(helper)]);
-    await Promise.race([resolver, resolveResult(result)]);
-    aborter.resolve();
-    await resolver;
+    const resolver = DeferHelper.getCallsResolver(helper);
+    const [result] = await Promise.all([
+      (async () => {
+        try {
+          const obj = await executor(helper);
+          return await resolveResult(obj);
+        } finally {
+          resolver.stop();
+        }
+      })(),
+      resolver,
+    ]);
     return result as AwaitedDeep<ReturnType<Executor>>;
   } finally {
-    aborter.resolve();
     DeferHelper.close(helper);
   }
 }
