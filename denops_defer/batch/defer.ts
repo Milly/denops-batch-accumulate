@@ -177,6 +177,11 @@ type AnyObject = Record<string, any>;
 type AnyPromise = Promise<any>;
 // deno-lint-ignore no-explicit-any
 type AnyFunction = (...args: any[]) => any;
+// deno-lint-ignore no-explicit-any
+type AnyTuple = readonly [] | readonly [any, ...any[]];
+type MapMember = keyof Map<unknown, unknown>;
+type SetMember = keyof Set<unknown>;
+type ArrayMember = keyof Array<unknown>;
 
 type NonMethodKeys<T extends AnyObject> = NonNullable<
   {
@@ -186,22 +191,27 @@ type NonMethodKeys<T extends AnyObject> = NonNullable<
 
 type AwaitedDeep<T> = T extends AnyPromise ? AwaitedDeep<Awaited<T>>
   : T extends Map<infer MapKey, infer MapValue> ? 
-      & AwaitedObject<Omit<T, keyof Map<MapKey, MapValue>>>
       & Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>
+      & AwaitedObject<Omit<T, MapMember>>
   : T extends Set<infer SetValue> ? 
-      & AwaitedObject<Omit<T, keyof Set<SetValue>>>
       & Set<AwaitedDeep<SetValue>>
-  : T extends Array<infer ArrayValue> ? 
-      & AwaitedObject<Omit<T, keyof Array<ArrayValue>>>
+      & AwaitedObject<Omit<T, SetMember>>
+  : T extends AnyTuple ? 
+      & AwaitedTuple<T>
+      & AwaitedObject<Omit<T, ArrayMember | `${number}`>>
+  : T extends ReadonlyArray<infer ArrayValue> ? 
       & Array<AwaitedDeep<ArrayValue>>
+      & AwaitedObject<Omit<T, ArrayMember>>
   : T extends AnyObject ? AwaitedObject<T>
   : T;
 
-type AwaitedObject<T extends AnyObject> =
-  & {
-    [K in NonMethodKeys<T>]: AwaitedDeep<T[K]>;
-  }
-  & Omit<T, NonMethodKeys<T>>;
+// deno-lint-ignore no-explicit-any
+type AwaitedTuple<T extends readonly any[]> = [...T] extends
+  [infer A, ...infer R] ? [AwaitedDeep<A>, ...AwaitedTuple<R>] : [];
+
+type AwaitedObject<T extends AnyObject> = {
+  [K in keyof T]: K extends NonMethodKeys<T> ? AwaitedDeep<T[K]> : T[K];
+};
 
 export type { DeferHelper };
 export const _internal = {
