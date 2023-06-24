@@ -1,20 +1,20 @@
-import { delay } from "https://deno.land/std@0.167.0/async/mod.ts";
+import { delay } from "https://deno.land/std@0.192.0/async/mod.ts";
 import {
   assertEquals,
   assertRejects,
-} from "https://deno.land/std@0.167.0/testing/asserts.ts";
+} from "https://deno.land/std@0.192.0/testing/asserts.ts";
 import {
   assertSpyCallArgs,
   assertSpyCalls,
   stub,
-} from "https://deno.land/std@0.167.0/testing/mock.ts";
-import type { Denops } from "https://deno.land/x/denops_core@v3.3.0/mod.ts";
-import { batch, gather } from "https://deno.land/x/denops_std@v3.12.0/batch/mod.ts";
+} from "https://deno.land/std@0.192.0/testing/mock.ts";
+import type { Denops } from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
+import { batch } from "https://deno.land/x/denops_std@v5.0.1/batch/mod.ts";
 import {
   stridx,
   strlen,
-} from "https://deno.land/x/denops_std@v3.12.0/function/_generated.ts";
-import { globals } from "https://deno.land/x/denops_std@v3.12.0/variable/mod.ts";
+} from "https://deno.land/x/denops_std@v5.0.1/function/_generated.ts";
+import { globals } from "https://deno.land/x/denops_std@v5.0.1/variable/mod.ts";
 import { defer, DeferHelper } from "./defer.ts";
 
 const denops_mock = {
@@ -247,27 +247,6 @@ Deno.test("[defer] defer", async (t) => {
               stridx(secondHelper, "baz", "z") as Promise<number>,
             ];
           }),
-          c: strlen(helper, "quux") as Promise<number>,
-        };
-      });
-      assertEquals(actual, {a: 3, b: [1, 2], c: 4});
-      assertSpyCalls(denops_batch_stub, 1);
-      assertSpyCallArgs(denops_batch_stub, 0, [
-        ["strlen", "foo"],
-        ["strlen", "quux"],
-        ["stridx", "bar", "a"],
-        ["stridx", "baz", "z"],
-      ]);
-    },
-    "returns nested gather": async () => {
-      denops_batch_stub = stubBatch(3, 4, 1, 2);
-      const actual = await defer(denops_mock, (helper) => {
-        return {
-          a: strlen(helper, "foo") as Promise<number>,
-          b: gather(helper, async (gatherHelper) => {
-            await stridx(gatherHelper, "bar", "a");
-            await stridx(gatherHelper, "baz", "z");
-          }) as Promise<number[]>,
           c: strlen(helper, "quux") as Promise<number>,
         };
       });

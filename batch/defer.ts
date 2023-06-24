@@ -1,10 +1,10 @@
-import { debounce, deferred } from "https://deno.land/std@0.167.0/async/mod.ts";
+import { debounce, deferred } from "https://deno.land/std@0.192.0/async/mod.ts";
 import type {
   Context,
   Denops,
   Dispatcher,
   Meta,
-} from "https://deno.land/x/denops_core@v3.3.0/mod.ts";
+} from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
 
 type Call = [string, ...unknown[]];
 
