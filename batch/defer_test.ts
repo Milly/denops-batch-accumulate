@@ -285,9 +285,9 @@ Deno.test("[defer] defer", async (t) => {
       const actual = await defer(denops_mock, (helper) => {
         return {
           a: strlen(helper, "foo") as Promise<number>,
-          b: batch(helper, async (gatherHelper) => {
-            await stridx(gatherHelper, "bar", "a");
-            await stridx(gatherHelper, "baz", "z");
+          b: batch(helper, async (batchHelper) => {
+            await stridx(batchHelper, "bar", "a");
+            await stridx(batchHelper, "baz", "z");
           }),
           c: strlen(helper, "quux") as Promise<number>,
         };
