@@ -3,51 +3,46 @@
 [![license:MIT](https://img.shields.io/github/license/Milly/deno-denops-accumulate?style=flat-square)](LICENSE)
 [![deno land](http://img.shields.io/badge/available%20on-deno.land/x/denops__accumulate-lightgrey.svg?logo=deno)](https://deno.land/x/denops_accumulate)
 
-`accumulate` resolves combined multiple denops calls like [`gather`][`gather`].
+`accumulate` executes multiple denops functions together whenever possible to
+reduce RPC overhead.
 
 `accumulate` preserves the structure of the complex object returned by the
 `executor` and resolves Promise it contains.
 
-[`gather`]: https://deno.land/x/denops_std/batch/gather.ts?s=gather
-
 ## Example
 
-To get `expected` from the following `input`:
-
 ```typescript
-const input = [
-  { word: "foo" },
-  { word: "hello" },
-  { word: "🚀☄" },
-];
+import { Denops } from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
+import * as fn from "https://deno.land/x/denops_std@v5.0.1/function/mod.ts";
+import { accumulate } from "https://deno.land/x/denops_accumulate/batch/accumulate.ts";
 
-const expected = [
-  { word: "foo", bytes: 3 },
-  { word: "hello", bytes: 5 },
-  { word: "🚀☄", bytes: 7 },
-];
+export async function main(denops: Denops): Promise<void> {
+  const results = await accumulate(denops, async (denops) => {
+    const lines = await fn.getline(denops, 1, "$");
+    return lines.map(async (line, index) => {
+      const keyword = await fn.matchstr(denops, line, "\\k\\+");
+      return {
+        lnum: index + 1,
+        keyword,
+        len: fn.len(denops, keyword),
+      };
+    });
+  });
+}
 ```
 
-Using `accumulate`:
+And the type of `results` are:
 
 ```typescript
-const output = await accumulate(denops, (helper) =>
-  input.map((item) => ({
-    ...item,
-    bytes: strlen(helper, item.word) as Promise<number>,
-  })));
+const results: {
+  lnum: number;
+  keyword: string;
+  len: number;
+}[];
 ```
 
-Using `gather` (requires intermediate variable):
+In the case of the example, the following 3 RPCs are called.
 
-```typescript
-const intermediate = await gather(denops, async (helper) => {
-  for (const item of input) {
-    await strlen(helper, item.word);
-  }
-}) as Promise<number[]>;
-const output = input.map((item, index) => ({
-  ...item,
-  bytes: intermediate[index],
-}));
-```
+1. RPC call to `getline`.
+2. Multiple `matchstr` calls in one RPC.
+3. Multiple `len` calls in one RPC.
