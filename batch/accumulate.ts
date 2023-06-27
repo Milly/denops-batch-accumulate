@@ -139,12 +139,10 @@ class AccumulateHelper implements Denops {
 /**
  * Perform accumulate call
  */
-export async function accumulate<
-  Executor extends (helper: AccumulateHelper) => unknown,
->(
+export async function accumulate<T extends unknown>(
   denops: Denops,
-  executor: Executor,
-): Promise<AwaitedDeep<ReturnType<Executor>>> {
+  executor: (helper: Denops) => T,
+): Promise<Accumulate<T>> {
   const helper = new AccumulateHelper(denops);
   try {
     const resolver = AccumulateHelper.getCallsResolver(helper);
@@ -159,7 +157,7 @@ export async function accumulate<
       })(),
       resolver,
     ]);
-    return result as AwaitedDeep<ReturnType<Executor>>;
+    return result as Accumulate<T>;
   } finally {
     AccumulateHelper.close(helper);
   }
@@ -202,38 +200,38 @@ type AnyPromise = Promise<any>;
 type AnyFunction = (...args: any[]) => any;
 // deno-lint-ignore no-explicit-any
 type AnyTuple = readonly [] | readonly [any, ...any[]];
+
 type MapMember = keyof Map<unknown, unknown>;
 type SetMember = keyof Set<unknown>;
 type ArrayMember = keyof Array<unknown>;
 
-type NonMethodKeys<T extends AnyObject> = NonNullable<
-  {
-    [K in keyof T]: T[K] extends AnyFunction ? never : K;
-  }[keyof T]
->;
-
 type AwaitedDeep<T> = T extends AnyPromise ? AwaitedDeep<Awaited<T>>
-  : T extends Map<infer MapKey, infer MapValue> ?
-      & Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>
-      & AwaitedObject<Omit<T, MapMember>>
-  : T extends Set<infer SetValue> ?
-      & Set<AwaitedDeep<SetValue>>
-      & AwaitedObject<Omit<T, SetMember>>
-  : T extends AnyTuple ?
-      & AwaitedTuple<T>
-      & AwaitedObject<Omit<T, ArrayMember | `${number}`>>
-  : T extends ReadonlyArray<infer ArrayValue> ?
-      & Array<AwaitedDeep<ArrayValue>>
-      & AwaitedObject<Omit<T, ArrayMember>>
+  : T extends Map<infer MapKey, infer MapValue> ? AwaitedContainer<
+      Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>,
+      Omit<T, MapMember>
+    >
+  : T extends Set<infer SetValue>
+    ? AwaitedContainer<Set<AwaitedDeep<SetValue>>, Omit<T, SetMember>>
+  : T extends AnyTuple
+    ? AwaitedContainer<AwaitedTuple<T>, Omit<T, ArrayMember | `${number}`>>
+  : T extends ReadonlyArray<infer ArrayValue>
+    ? AwaitedContainer<Array<AwaitedDeep<ArrayValue>>, Omit<T, ArrayMember>>
   : T extends AnyObject ? AwaitedObject<T>
   : T;
 
+type AwaitedContainer<T, Extend extends AnyObject> = Extend extends
+  Record<string, never> ? T : (T & AwaitedObject<Extend>);
+
 // deno-lint-ignore no-explicit-any
-type AwaitedTuple<T extends readonly any[]> = [...T] extends
+type AwaitedTuple<T extends readonly [...any[]]> = T extends
   [infer A, ...infer R] ? [AwaitedDeep<A>, ...AwaitedTuple<R>] : [];
 
-type AwaitedObject<T extends AnyObject> = {
-  [K in keyof T]: K extends NonMethodKeys<T> ? AwaitedDeep<T[K]> : T[K];
+type AwaitedObject<T extends AnyObject> = Simplify<AwaitedObjectComp<T>>;
+type AwaitedObjectComp<T extends AnyObject> = {
+  [K in keyof T]: T[K] extends AnyFunction ? T[K] : AwaitedDeep<T[K]>;
 };
 
-export type { AccumulateHelper };
+// deno-lint-ignore ban-types
+type Simplify<T> = { [K in keyof T]: T[K] } & {};
+
+type Accumulate<T> = AwaitedDeep<T>;

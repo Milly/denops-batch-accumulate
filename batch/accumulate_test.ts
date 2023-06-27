@@ -15,7 +15,7 @@ import {
   strlen,
 } from "https://deno.land/x/denops_std@v5.0.1/function/_generated.ts";
 import { globals } from "https://deno.land/x/denops_std@v5.0.1/variable/mod.ts";
-import { accumulate, AccumulateHelper } from "./accumulate.ts";
+import { accumulate } from "./accumulate.ts";
 
 const denops_mock = {
   batch() {},
@@ -457,13 +457,13 @@ Deno.test("[accumulate] accumulate resolves", async (t) => {
 Deno.test("[accumulate] AccumulateHelper", async (t) => {
   await t.step("call", async (t) => {
     await t.step("throws error if called outside of 'accumulate'", async () => {
-      let helper_saved = null as unknown as AccumulateHelper;
+      let helper_saved: Denops | undefined;
       await accumulate(denops_mock, (helper) => {
         helper_saved = helper;
       });
       await assertRejects(
         async () => {
-          await helper_saved.call("strlen", "foo");
+          await helper_saved?.call("strlen", "foo");
         },
         Error,
         "AccumulateHelper instance is not available outside of 'accumulate' block",
@@ -473,13 +473,13 @@ Deno.test("[accumulate] AccumulateHelper", async (t) => {
 
   await t.step("cmd", async (t) => {
     await t.step("throws error if called outside of 'accumulate'", async () => {
-      let helper_saved = null as unknown as AccumulateHelper;
+      let helper_saved: Denops | undefined;
       await accumulate(denops_mock, (helper) => {
         helper_saved = helper;
       });
       await assertRejects(
         async () => {
-          await helper_saved.cmd("echomsg 'foo'");
+          await helper_saved?.cmd("echomsg 'foo'");
         },
         Error,
         "AccumulateHelper instance is not available outside of 'accumulate' block",
@@ -489,13 +489,13 @@ Deno.test("[accumulate] AccumulateHelper", async (t) => {
 
   await t.step("eval", async (t) => {
     await t.step("throws error if called outside of 'accumulate'", async () => {
-      let helper_saved = null as unknown as AccumulateHelper;
+      let helper_saved: Denops | undefined;
       await accumulate(denops_mock, (helper) => {
         helper_saved = helper;
       });
       await assertRejects(
         async () => {
-          await helper_saved.eval("42 + 123");
+          await helper_saved?.eval("42 + 123");
         },
         Error,
         "AccumulateHelper instance is not available outside of 'accumulate' block",
@@ -519,13 +519,13 @@ Deno.test("[accumulate] AccumulateHelper", async (t) => {
 
   await t.step("batch", async (t) => {
     await t.step("throws error if called outside of 'accumulate'", async () => {
-      let helper_saved = null as unknown as AccumulateHelper;
+      let helper_saved: Denops | undefined;
       await accumulate(denops_mock, (helper) => {
         helper_saved = helper;
       });
       await assertRejects(
         async () => {
-          await helper_saved.batch(["strlen", "foo"]);
+          await helper_saved?.batch(["strlen", "foo"]);
         },
         Error,
         "AccumulateHelper instance is not available outside of 'accumulate' block",
