@@ -164,13 +164,12 @@ Deno.test("[accumulate] accumulate", async (t) => {
     },
     "returns chained Promise": async () => {
       denops_batch_stub = stubBatch(42, 123, 39);
-      const actual = await accumulate(denops_mock, (helper) => {
-        return (strlen(helper, "foo") as Promise<number>).then((value) => {
-          return [
-            stridx(helper, "bar", "a", value) as Promise<number>,
-            strlen(helper, "baz") as Promise<number>,
-          ];
-        });
+      const actual = await accumulate(denops_mock, async (helper) => {
+        const value = await strlen(helper, "foo");
+        return [
+          stridx(helper, "bar", "a", value) as Promise<number>,
+          strlen(helper, "baz") as Promise<number>,
+        ];
       });
       assertEquals(actual, [123, 39]);
       assertSpyCalls(denops_batch_stub, 2);
