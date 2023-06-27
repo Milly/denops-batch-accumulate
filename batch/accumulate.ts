@@ -195,7 +195,7 @@ export async function accumulate<T extends unknown>(
     const [result] = await Promise.all([
       (async () => {
         try {
-          const obj = await executor(helper);
+          const obj = executor(helper);
           return await resolveResult(obj);
         } finally {
           resolver.stop();
@@ -211,28 +211,34 @@ export async function accumulate<T extends unknown>(
 
 async function resolveResult(obj: unknown): Promise<unknown> {
   obj = await obj;
-  if (obj != null) {
+  if (obj && (typeof obj === "object" || typeof obj === "function")) {
     if (obj instanceof Map) {
-      const keyValues = Array.from(obj);
+      const keyValues = await Promise.all(
+        [...obj].flat().map((v) => resolveResult(v)),
+      );
       obj.clear();
-      for (const [key, value] of keyValues) {
-        obj.set(await resolveResult(key), await resolveResult(value));
+      for (let i = 0; i < keyValues.length; i += 2) {
+        obj.set(keyValues[i], keyValues[i + 1]);
       }
     } else if (obj instanceof Set) {
-      const values = Array.from(obj);
+      const values = await Promise.all([...obj].map((v) => resolveResult(v)));
       obj.clear();
       for (const value of values) {
-        obj.add(await resolveResult(value));
+        obj.add(value);
       }
     }
-    if (typeof obj === "object" || typeof obj === "function") {
-      for (const [key, value] of Object.entries(obj)) {
-        const resolved = await resolveResult(value);
-        if (value !== resolved) {
-          // deno-lint-ignore no-explicit-any
-          (obj as any)[key] = resolved;
-        }
-      }
+    {
+      const keys = Object.keys(obj).filter((key) =>
+        Object.getOwnPropertyDescriptor(obj, key)?.writable
+      );
+      const values = await Promise.all(
+        // deno-lint-ignore no-explicit-any
+        keys.map((key) => resolveResult((obj as any)[key])),
+      );
+      keys.forEach((key, i) => {
+        // deno-lint-ignore no-explicit-any
+        (obj as any)[key] = values[i];
+      });
     }
   }
   return obj;
