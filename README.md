@@ -1,12 +1,12 @@
-# deno-denops-defer
+# deno-denops-accumulate
 
-[![license:MIT](https://img.shields.io/github/license/Milly/deno-denops-defer?style=flat-square)](LICENSE)
-[![deno land](http://img.shields.io/badge/available%20on-deno.land/x/denops__defer-lightgrey.svg?logo=deno)](https://deno.land/x/denops_defer)
+[![license:MIT](https://img.shields.io/github/license/Milly/deno-denops-accumulate?style=flat-square)](LICENSE)
+[![deno land](http://img.shields.io/badge/available%20on-deno.land/x/denops__accumulate-lightgrey.svg?logo=deno)](https://deno.land/x/denops_accumulate)
 
-`defer` resolves combined multiple denops calls like [`gather`][`gather`].
+`accumulate` resolves combined multiple denops calls like [`gather`][`gather`].
 
-`defer` preserves the structure of the complex object returned by the `executor`
-and resolves Promise it contains.
+`accumulate` preserves the structure of the complex object returned by the
+`executor` and resolves Promise it contains.
 
 [`gather`]: https://deno.land/x/denops_std/batch/gather.ts?s=gather
 
@@ -28,10 +28,10 @@ const expected = [
 ];
 ```
 
-Using `defer`:
+Using `accumulate`:
 
 ```typescript
-const output = await defer(denops, (helper) =>
+const output = await accumulate(denops, (helper) =>
   input.map((item) => ({
     ...item,
     bytes: strlen(helper, item.word) as Promise<number>,

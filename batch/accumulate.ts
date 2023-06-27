@@ -8,7 +8,7 @@ import type {
 
 type Call = [string, ...unknown[]];
 
-class DeferHelper implements Denops {
+class AccumulateHelper implements Denops {
   #denops: Denops;
   #calls: Call[] = [];
   #results: unknown[] = [];
@@ -22,7 +22,7 @@ class DeferHelper implements Denops {
     this.#denops = denops;
   }
 
-  static getCallsResolver(helper: DeferHelper) {
+  static getCallsResolver(helper: AccumulateHelper) {
     const willStop = deferred<void>();
     const resolver = helper.#resolveCalls(willStop);
     return Object.assign(
@@ -33,7 +33,7 @@ class DeferHelper implements Denops {
     );
   }
 
-  static close(helper: DeferHelper): void {
+  static close(helper: AccumulateHelper): void {
     helper.#closed = true;
   }
 
@@ -58,7 +58,9 @@ class DeferHelper implements Denops {
   }
 
   redraw(_force?: boolean): Promise<void> {
-    throw new Error("The 'redraw' method is not available on DeferHelper.");
+    throw new Error(
+      "The 'redraw' method is not available on AccumulateHelper.",
+    );
   }
 
   async call(fn: string, ...args: unknown[]): Promise<unknown> {
@@ -97,7 +99,7 @@ class DeferHelper implements Denops {
   #ensureAvaiable(): void {
     if (this.#closed) {
       throw new Error(
-        "DeferHelper instance is not available outside of 'defer' block",
+        "AccumulateHelper instance is not available outside of 'accumulate' block",
       );
     }
   }
@@ -135,15 +137,17 @@ class DeferHelper implements Denops {
 }
 
 /**
- * Perform defer call
+ * Perform accumulate call
  */
-export async function defer<Executor extends (helper: DeferHelper) => unknown>(
+export async function accumulate<
+  Executor extends (helper: AccumulateHelper) => unknown,
+>(
   denops: Denops,
   executor: Executor,
 ): Promise<AwaitedDeep<ReturnType<Executor>>> {
-  const helper = new DeferHelper(denops);
+  const helper = new AccumulateHelper(denops);
   try {
-    const resolver = DeferHelper.getCallsResolver(helper);
+    const resolver = AccumulateHelper.getCallsResolver(helper);
     const [result] = await Promise.all([
       (async () => {
         try {
@@ -157,7 +161,7 @@ export async function defer<Executor extends (helper: DeferHelper) => unknown>(
     ]);
     return result as AwaitedDeep<ReturnType<Executor>>;
   } finally {
-    DeferHelper.close(helper);
+    AccumulateHelper.close(helper);
   }
 }
 
@@ -209,16 +213,16 @@ type NonMethodKeys<T extends AnyObject> = NonNullable<
 >;
 
 type AwaitedDeep<T> = T extends AnyPromise ? AwaitedDeep<Awaited<T>>
-  : T extends Map<infer MapKey, infer MapValue> ? 
+  : T extends Map<infer MapKey, infer MapValue> ?
       & Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>
       & AwaitedObject<Omit<T, MapMember>>
-  : T extends Set<infer SetValue> ? 
+  : T extends Set<infer SetValue> ?
       & Set<AwaitedDeep<SetValue>>
       & AwaitedObject<Omit<T, SetMember>>
-  : T extends AnyTuple ? 
+  : T extends AnyTuple ?
       & AwaitedTuple<T>
       & AwaitedObject<Omit<T, ArrayMember | `${number}`>>
-  : T extends ReadonlyArray<infer ArrayValue> ? 
+  : T extends ReadonlyArray<infer ArrayValue> ?
       & Array<AwaitedDeep<ArrayValue>>
       & AwaitedObject<Omit<T, ArrayMember>>
   : T extends AnyObject ? AwaitedObject<T>
@@ -232,4 +236,4 @@ type AwaitedObject<T extends AnyObject> = {
   [K in keyof T]: K extends NonMethodKeys<T> ? AwaitedDeep<T[K]> : T[K];
 };
 
-export type { DeferHelper };
+export type { AccumulateHelper };
