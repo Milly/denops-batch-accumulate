@@ -209,36 +209,39 @@ export async function accumulate<T extends unknown>(
   }
 }
 
+const EMPTY_CONTAINER_VALUES = Promise.resolve([]);
+
 async function resolveResult(obj: unknown): Promise<unknown> {
   obj = await obj;
-  if (obj && (typeof obj === "object" || typeof obj === "function")) {
+  if ((obj != null && typeof obj === "object") || typeof obj === "function") {
+    const objKeys = Object.keys(obj).filter(
+      (key) => Object.getOwnPropertyDescriptor(obj, key)?.writable,
+    );
+    const [containerValues, objValues] = await Promise.all([
+      obj instanceof Map
+        ? Promise.all([...obj].flat().map((v) => resolveResult(v)))
+        : obj instanceof Set
+        ? Promise.all([...obj].map((v) => resolveResult(v)))
+        : EMPTY_CONTAINER_VALUES,
+      Promise.all(
+        objKeys.map(
+          (key) => resolveResult((obj as Record<string, unknown>)[key]),
+        ),
+      ),
+    ]);
     if (obj instanceof Map) {
-      const keyValues = await Promise.all(
-        [...obj].flat().map((v) => resolveResult(v)),
-      );
       obj.clear();
-      for (let i = 0; i < keyValues.length; i += 2) {
-        obj.set(keyValues[i], keyValues[i + 1]);
+      for (let i = 0; i < containerValues.length; i += 2) {
+        obj.set(containerValues[i], containerValues[i + 1]);
       }
     } else if (obj instanceof Set) {
-      const values = await Promise.all([...obj].map((v) => resolveResult(v)));
       obj.clear();
-      for (const value of values) {
+      for (const value of containerValues) {
         obj.add(value);
       }
     }
-    {
-      const keys = Object.keys(obj).filter((key) =>
-        Object.getOwnPropertyDescriptor(obj, key)?.writable
-      );
-      const values = await Promise.all(
-        // deno-lint-ignore no-explicit-any
-        keys.map((key) => resolveResult((obj as any)[key])),
-      );
-      keys.forEach((key, i) => {
-        // deno-lint-ignore no-explicit-any
-        (obj as any)[key] = values[i];
-      });
+    for (let i = 0; i < objKeys.length; ++i) {
+      (obj as Record<string, unknown>)[objKeys[i]] = objValues[i];
     }
   }
   return obj;
