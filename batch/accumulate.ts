@@ -1,4 +1,4 @@
-import { debounce, deferred } from "https://deno.land/std@0.192.0/async/mod.ts";
+import { debounce } from "https://deno.land/std@0.224.0/async/mod.ts";
 import type {
   Context,
   Denops,
@@ -14,8 +14,8 @@ class AccumulateHelper implements Denops {
   #results: unknown[] = [];
   #errors: unknown[] = [];
   #closed = false;
-  #resolved = deferred<void>();
-  #called = deferred<void>();
+  #resolved = Promise.withResolvers<void>();
+  #called = Promise.withResolvers<void>();
   #onCalled = debounce(() => this.#called.resolve(), 0);
 
   constructor(denops: Denops) {
@@ -23,14 +23,11 @@ class AccumulateHelper implements Denops {
   }
 
   static getCallsResolver(helper: AccumulateHelper) {
-    const willStop = deferred<void>();
-    const resolver = helper.#resolveCalls(willStop);
-    return Object.assign(
-      resolver,
-      {
-        stop: () => willStop.resolve(),
-      },
-    );
+    const willStop = Promise.withResolvers<void>();
+    return {
+      promise: helper.#resolveCalls(willStop.promise),
+      stop: () => willStop.resolve(),
+    };
   }
 
   static close(helper: AccumulateHelper): void {
@@ -68,7 +65,7 @@ class AccumulateHelper implements Denops {
     const callIndex = this.#calls.length;
     this.#calls.push([fn, ...args]);
     this.#onCalled();
-    await this.#resolved;
+    await this.#resolved.promise;
     return this.#results[callIndex];
   }
 
@@ -77,7 +74,7 @@ class AccumulateHelper implements Denops {
     const callIndex = this.#calls.length;
     this.#calls.push(...calls);
     this.#onCalled();
-    await this.#resolved;
+    await this.#resolved.promise;
     return this.#results.slice(callIndex, callIndex + calls.length);
   }
 
@@ -118,15 +115,15 @@ class AccumulateHelper implements Denops {
     this.#results.push(...results);
     if (this.#results.length === this.#calls.length) {
       const lastResolved = this.#resolved;
-      this.#resolved = deferred();
-      this.#called = deferred();
+      this.#resolved = Promise.withResolvers();
+      this.#called = Promise.withResolvers();
       lastResolved.resolve();
     }
   }
 
   async #resolveCalls(willStop: Promise<void>): Promise<void> {
     for (;;) {
-      await Promise.race([this.#called, willStop]);
+      await Promise.race([this.#called.promise, willStop]);
       this.#ensureNoErrors();
       const calls = this.#getCalls();
       if (calls.length === 0) break;
@@ -192,17 +189,15 @@ export async function accumulate<T extends unknown>(
   const helper = new AccumulateHelper(denops);
   try {
     const resolver = AccumulateHelper.getCallsResolver(helper);
-    const [result] = await Promise.all([
-      (async () => {
-        try {
-          const obj = executor(helper);
-          return await resolveResult(obj);
-        } finally {
-          resolver.stop();
-        }
-      })(),
-      resolver,
-    ]);
+    const run = async () => {
+      try {
+        const obj = executor(helper);
+        return await resolveResult(obj);
+      } finally {
+        resolver.stop();
+      }
+    };
+    const [result] = await Promise.all([run(), resolver.promise]);
     return result as Accumulate<T>;
   } finally {
     AccumulateHelper.close(helper);
