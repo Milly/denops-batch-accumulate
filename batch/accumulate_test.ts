@@ -1,5 +1,5 @@
 import { delay } from "@std/async";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
 import { assertType, type IsExact } from "@std/testing/types";
 import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
 import type { Denops } from "@denops/core";
@@ -695,6 +695,52 @@ test({
         Error,
         "Unknown function: notexistsfn",
       );
+    });
+    await t.step("helper.name", async (t) => {
+      await t.step("getter returns 'denops.name'", async () => {
+        let actual: unknown;
+        await accumulate(denops, (helper) => {
+          actual = helper.name;
+        });
+        assertStrictEquals(actual, denops.name);
+      });
+    });
+    await t.step("helper.meta", async (t) => {
+      await t.step("getter returns 'denops.meta'", async () => {
+        let actual: unknown;
+        await accumulate(denops, (helper) => {
+          actual = helper.meta;
+        });
+        assertStrictEquals(actual, denops.meta);
+      });
+    });
+    await t.step("helper.context", async (t) => {
+      await t.step("getter returns 'denops.context'", async () => {
+        let actual: unknown;
+        await accumulate(denops, (helper) => {
+          actual = helper.context;
+        });
+        assertStrictEquals(actual, denops.context);
+      });
+    });
+    await t.step("helper.dispatcher", async (t) => {
+      const MY_DISPATCHER = {
+        foo: () => {},
+      };
+
+      await t.step("setter sets to 'denops.dispatcher'", async () => {
+        await accumulate(denops, (helper) => {
+          helper.dispatcher = MY_DISPATCHER;
+        });
+        assertStrictEquals(denops.dispatcher, MY_DISPATCHER);
+      });
+      await t.step("getter returns 'denops.dispatcher'", async () => {
+        let actual: unknown;
+        await accumulate(denops, (helper) => {
+          actual = helper.dispatcher;
+        });
+        assertStrictEquals(actual, MY_DISPATCHER);
+      });
     });
     await t.step("if outside of the 'accumulate' block", async (t) => {
       await t.step("helper.call()", async (t) => {
