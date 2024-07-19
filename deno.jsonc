@@ -23,7 +23,8 @@
     "check": "deno lint && deno fmt --check && deno check **/*.ts",
     "test": "deno test -A --doc --parallel --shuffle",
     "test:coverage": "deno task test --coverage=.coverage",
-    "coverage": "deno coverage .coverage"
+    "coverage": "deno coverage .coverage",
+    "coverage:clean": "rm -rf .coverage"
   },
   "imports": {
     "@denops/core": "jsr:@denops/core@^7.0.0-pre1",
