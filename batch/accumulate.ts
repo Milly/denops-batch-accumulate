@@ -7,7 +7,6 @@ class AccumulateHelper implements Denops {
   #denops: Denops;
   #calls: Call[] = [];
   #results: unknown[] = [];
-  #errors: unknown[] = [];
   #closed = false;
   #resolved = Promise.withResolvers<void>();
   #called = Promise.withResolvers<void>();
@@ -78,8 +77,7 @@ class AccumulateHelper implements Denops {
 
   cmd(cmd: string, ctx: Context = {}): Promise<void> {
     this.#ensureAvailable();
-    this.call("denops#api#cmd", cmd, ctx)
-      .catch((reason) => void this.#errors.push(reason));
+    this.call("denops#api#cmd", cmd, ctx);
     return Promise.resolve();
   }
 
@@ -96,12 +94,6 @@ class AccumulateHelper implements Denops {
       throw new Error(
         "AccumulateHelper instance is not available outside of 'accumulate' block",
       );
-    }
-  }
-
-  #ensureNoErrors(): void {
-    if (this.#errors.length > 0) {
-      throw this.#errors[0];
     }
   }
 
@@ -122,7 +114,6 @@ class AccumulateHelper implements Denops {
   async #resolveCalls(willStop: Promise<void>): Promise<void> {
     for (;;) {
       await Promise.race([this.#called.promise, willStop]);
-      this.#ensureNoErrors();
       const calls = this.#getCalls();
       if (calls.length === 0) break;
       const results = await this.#denops.batch(...calls);
