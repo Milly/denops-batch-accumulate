@@ -4,7 +4,7 @@ import type {
   Denops,
   Dispatcher,
   Meta,
-} from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
+} from "https://deno.land/x/denops_core@v6.1.0/mod.ts";
 
 type Call = [string, ...unknown[]];
 
