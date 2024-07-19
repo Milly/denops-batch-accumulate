@@ -134,15 +134,16 @@ class AccumulateHelper implements Denops {
 }
 
 /**
- * Execute multiple denops functions together whenever possible to reduce RPC overhead.
+ * Call multiple denops functions together whenever possible to reduce RPC overhead.
  *
- * `accumulate` preserves the structure of the complex object returned by the `executor`
- * and resolves Promise it contains.
+ * `accumulate` preserves the structure of the complex object returned by the
+ * `executor` and resolves Promise it contains.
  *
  * ```typescript
  * import { Denops } from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
  * import * as fn from "https://deno.land/x/denops_std@v5.0.1/function/mod.ts";
  * import { accumulate } from "https://deno.land/x/denops_accumulate/batch/accumulate.ts";
+ * import { assertType, IsExact } from "https://deno.land/std@0.224.0/testing/types.ts";
  *
  * export async function main(denops: Denops): Promise<void> {
  *   const results = await accumulate(denops, async (denops) => {
@@ -157,16 +158,12 @@ class AccumulateHelper implements Denops {
  *     });
  *   });
  * }
- * ```
- *
- * And the type of `results` are:
- *
- * ```typescript
- * const results: {
- *   lnum: number;
- *   keyword: string;
- *   len: number;
- * }[];
+ * assertType<
+ *   IsExact<
+ *     typeof results,
+ *     { lnum: number; keyword: string; len: number; }[]
+ *   >
+ * >(true);
  * ```
  *
  * In the case of the example, the following 3 RPCs are called.
@@ -175,9 +172,9 @@ class AccumulateHelper implements Denops {
  * 2. Multiple `matchstr` calls in one RPC.
  * 3. Multiple `len` calls in one RPC.
  *
- * The `denops` instance passed to the `accumulate` block is NOT available outside of
- * the block. An error is thrown when `denops.call()`, `denops.batch()`,
- * `denops.cmd()`, or `denops.eval()` is called.
+ * The `denops` instance passed to the `accumulate` block is NOT available
+ * outside of the block. An error is thrown when `denops.call()`,
+ * `denops.batch()`, `denops.cmd()`, or `denops.eval()` is called.
  *
  * Note that `denops.redraw()` cannot be called within `accumulate()`.
  * If it is called, an error is raised.
@@ -245,8 +242,6 @@ async function resolveResult(obj: unknown): Promise<unknown> {
 // deno-lint-ignore no-explicit-any
 type AnyObject = Record<string, any>;
 // deno-lint-ignore no-explicit-any
-type AnyPromise = Promise<any>;
-// deno-lint-ignore no-explicit-any
 type AnyFunction = (...args: any[]) => any;
 // deno-lint-ignore no-explicit-any
 type AnyTuple = readonly [] | readonly [any, ...any[]];
@@ -255,8 +250,9 @@ type MapMember = keyof Map<unknown, unknown>;
 type SetMember = keyof Set<unknown>;
 type ArrayMember = keyof Array<unknown>;
 
-type AwaitedDeep<T> = T extends AnyPromise ? AwaitedDeep<Awaited<T>>
-  : T extends Map<infer MapKey, infer MapValue> ? AwaitedContainer<
+type AwaitedDeep<T> = AwaitedDeepInner<Awaited<T>>;
+type AwaitedDeepInner<T> = T extends AnyObject
+  ? T extends Map<infer MapKey, infer MapValue> ? AwaitedContainer<
       Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>,
       Omit<T, MapMember>
     >
@@ -266,15 +262,25 @@ type AwaitedDeep<T> = T extends AnyPromise ? AwaitedDeep<Awaited<T>>
     ? AwaitedContainer<AwaitedTuple<T>, Omit<T, ArrayMember | `${number}`>>
   : T extends ReadonlyArray<infer ArrayValue>
     ? AwaitedContainer<Array<AwaitedDeep<ArrayValue>>, Omit<T, ArrayMember>>
-  : T extends AnyObject ? AwaitedObject<T>
+  : T extends string ? AwaitedContainer<T, Omit<T, keyof string>>
+  : T extends number ? AwaitedContainer<T, Omit<T, keyof number>>
+  : T extends boolean ? AwaitedContainer<T, Omit<T, keyof boolean>>
+  : T extends bigint ? AwaitedContainer<T, Omit<T, keyof bigint>>
+  : AwaitedObject<T>
   : T;
 
+type Unwrap<T, Extend extends AnyObject> = T extends Extend & infer U ? U : T;
+
 type AwaitedContainer<T, Extend extends AnyObject> = Extend extends
-  Record<string, never> ? T : (T & AwaitedObject<Extend>);
+  Record<string, never> ? T : Unwrap<T, Extend> & AwaitedObject<Extend>;
 
 // deno-lint-ignore no-explicit-any
-type AwaitedTuple<T extends readonly [...any[]]> = T extends
-  [infer A, ...infer R] ? [AwaitedDeep<A>, ...AwaitedTuple<R>] : [];
+type AwaitedTuple<T extends readonly [...any[]]> = AwaitedTupleInner<
+  Unwrap<T, Omit<T, ArrayMember | `${number}`>>
+>;
+type AwaitedTupleInner<T> = T extends readonly [infer A, ...infer R]
+  ? [AwaitedDeep<A>, ...AwaitedTupleInner<R>]
+  : [];
 
 type AwaitedObject<T extends AnyObject> = Simplify<AwaitedObjectComp<T>>;
 type AwaitedObjectComp<T extends AnyObject> = {
