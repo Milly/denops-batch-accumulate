@@ -627,6 +627,13 @@ test({
       ]);
       assertEquals(results, [[21, 19], [200]]);
     });
+    await t.step("resolves 'helper.batch()' with empty", async () => {
+      await denops.cmd("let g:denops_accumulate_test = 20");
+      const results = await accumulate(denops, (helper) => [
+        helper.batch(),
+      ]);
+      assertEquals(results, [[]]);
+    });
     await t.step("resolves 'helper.dispatch()' sequentially", async () => {
       using denops_dispatch = stub(
         denops,

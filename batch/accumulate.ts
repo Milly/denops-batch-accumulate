@@ -71,6 +71,9 @@ class AccumulateHelper implements Denops {
 
   async batch(...calls: Call[]): Promise<unknown[]> {
     this.#ensureAvailable();
+    if (calls.length === 0) {
+      return [];
+    }
     const callIndex = this.#calls.length;
     this.#calls.push(...calls);
     this.#onCalled();
