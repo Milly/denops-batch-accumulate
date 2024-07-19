@@ -1,21 +1,14 @@
 name: Test
 
-env:
-  DENO_DIR: ".deno"
-  REPO_DIR: "repo"
-
 on:
   push:
     branches:
-      - main
-    paths:
-      - "**.md"
-      - "**.ts"
-      - ".github/workflows/test.yml"
+      - master
   pull_request:
     paths:
       - "**.md"
       - "**.ts"
+      - "deno.jsonc"
       - ".github/workflows/test.yml"
 
 defaults:
@@ -28,37 +21,81 @@ jobs:
       matrix:
         runner:
           - ubuntu-latest
-        version:
-          - "1.27.0"
+        deno_version:
+          - "1.44.x"
           - "1.x"
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v1
         with:
-          path: ${{ env.REPO_DIR }}
+          deno-version: "${{ matrix.deno_version }}"
+
+      - name: Check
+        run: deno task check
+
+  test:
+    needs: check
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+        deno_version:
+          - "1.44.x"
+          - "1.x"
+        host_version:
+          - vim: "v9.1.0448"
+            nvim: "v0.10.0"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: denoland/setup-deno@v1
         id: setup-deno
         with:
-          deno-version: "${{ matrix.version }}"
-      - uses: actions/cache@v3
+          deno-version: "${{ matrix.deno_version }}"
+
+      - name: Get denops
+        run: |
+          git clone https://github.com/vim-denops/denops.vim /tmp/denops.vim
+          echo "DENOPS_TEST_DENOPS_PATH=/tmp/denops.vim" >> "$GITHUB_ENV"
+
+      - uses: rhysd/action-setup-vim@v1
+        id: vim
         with:
-          path: ${{ env.DENO_DIR }}
-          key: ${{ runner.os }}-deno-${{ steps.setup-deno.outputs.deno-version }}-${{ hashFiles('**/*.ts') }}
-          restore-keys: |
-            ${{ runner.os }}-deno-${{ steps.setup-deno.outputs.deno-version }}-
-            ${{ runner.os }}-deno-
-      - name: Lint check
-        run: deno lint
-        working-directory: ${{ env.REPO_DIR }}
-        env:
-          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
-      - name: Format check
-        run: deno fmt --check
-        working-directory: ${{ env.REPO_DIR }}
-        env:
-          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
-      - name: Test
-        run: deno test
-        working-directory: ${{ env.REPO_DIR }}
-        env:
-          DENO_DIR: ${{ github.workspace }}/${{ env.DENO_DIR }}
+          version: "${{ matrix.host_version.vim }}"
+
+      - uses: rhysd/action-setup-vim@v1
+        id: nvim
+        with:
+          neovim: true
+          version: "${{ matrix.host_version.nvim }}"
+
+      - name: Export executables
+        run: |
+          echo "DENOPS_TEST_VIM_EXECUTABLE=${{ steps.vim.outputs.executable }}" >> "$GITHUB_ENV"
+          echo "DENOPS_TEST_NVIM_EXECUTABLE=${{ steps.nvim.outputs.executable }}" >> "$GITHUB_ENV"
+
+      - name: Check versions
+        run: |
+          deno --version
+          ${DENOPS_TEST_VIM_EXECUTABLE} --version
+          ${DENOPS_TEST_NVIM_EXECUTABLE} --version
+
+      - name: Perform pre-cache
+        run: |
+          deno cache ${DENOPS_TEST_DENOPS_PATH}/denops/@denops-private/mod.ts ./batch/accumulate_test.ts
+
+      - name: Run tests
+        run: deno task test:coverage
+        timeout-minutes: 5
+
+      - run: |
+          deno task coverage --lcov > coverage.lcov
+
+      - uses: codecov/codecov-action@v4
+        with:
+          os: ${{ runner.os }}
+          files: ./coverage.lcov
+          token: ${{ secrets.CODECOV_TOKEN }}

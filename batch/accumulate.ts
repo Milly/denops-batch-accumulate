@@ -1,10 +1,5 @@
-import { debounce } from "https://deno.land/std@0.224.0/async/mod.ts";
-import type {
-  Context,
-  Denops,
-  Dispatcher,
-  Meta,
-} from "https://deno.land/x/denops_core@v6.1.0/mod.ts";
+import { debounce } from "@std/async";
+import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 
 type Call = [string, ...unknown[]];
 
@@ -143,10 +138,10 @@ class AccumulateHelper implements Denops {
  * `executor` and resolves Promise it contains.
  *
  * ```typescript
- * import { Denops } from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
- * import * as fn from "https://deno.land/x/denops_std@v5.0.1/function/mod.ts";
- * import { accumulate } from "https://deno.land/x/denops_accumulate/batch/accumulate.ts";
- * import { assertType, IsExact } from "https://deno.land/std@0.224.0/testing/types.ts";
+ * import { assertType, IsExact } from "jsr:@std/testing/types";
+ * import { Denops } from "jsr:@denops/core";
+ * import * as fn from "jsr:@denops/std/function";
+ * import { accumulate } from "jsr:@milly/denops-batch-accumulate";
  *
  * export async function main(denops: Denops): Promise<void> {
  *   const results = await accumulate(denops, async (denops) => {
@@ -160,13 +155,13 @@ class AccumulateHelper implements Denops {
  *       };
  *     });
  *   });
+ *   assertType<
+ *     IsExact<
+ *       typeof results,
+ *       { lnum: number; keyword: string; len: number; }[]
+ *     >
+ *   >(true);
  * }
- * assertType<
- *   IsExact<
- *     typeof results,
- *     { lnum: number; keyword: string; len: number; }[]
- *   >
- * >(true);
  * ```
  *
  * In the case of the example, the following 3 RPCs are called.

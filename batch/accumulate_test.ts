@@ -1,24 +1,11 @@
-import { delay } from "https://deno.land/std@0.224.0/async/mod.ts";
-import {
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import {
-  assertType,
-  IsExact,
-} from "https://deno.land/std@0.224.0/testing/types.ts";
-import {
-  assertSpyCalls,
-  resolvesNext,
-  spy,
-  stub,
-} from "https://deno.land/std@0.224.0/testing/mock.ts";
-import type { Denops } from "https://deno.land/x/denops_core@v6.1.0/mod.ts";
-import {
-  batch,
-  collect,
-} from "https://deno.land/x/denops_std@v6.5.1/batch/mod.ts";
-import { test } from "https://deno.land/x/denops_test@v1.8.0/mod.ts";
+import { delay } from "@std/async";
+import { assertEquals, assertRejects } from "@std/assert";
+import { assertType, type IsExact } from "@std/testing/types";
+import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
+import type { Denops } from "@denops/core";
+import { batch, collect } from "@denops/std/batch";
+import { test } from "@denops/test";
+
 import { accumulate } from "./accumulate.ts";
 
 const mocked_denops = {

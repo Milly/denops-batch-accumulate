@@ -1,20 +1,26 @@
-# deno-denops-accumulate
+# denops-batch-accumulate
 
-[![license:MIT](https://img.shields.io/github/license/Milly/deno-denops-accumulate?style=flat-square)](LICENSE)
-[![deno land](http://img.shields.io/badge/available%20on-deno.land/x/denops__accumulate-lightgrey.svg?logo=deno)](https://deno.land/x/denops_accumulate)
+[![license:MIT](https://img.shields.io/github/license/Milly/denops-batch-accumulate?style=flat-square)](LICENSE)
+[![jsr](https://jsr.io/badges/@milly/denops-batch-accumulate)](https://jsr.io/@milly/denops-batch-accumulate)
+[![codecov](https://codecov.io/gh/Milly/denops-batch-accumulate/graph/badge.svg?token=76N25YHGZO)](https://codecov.io/gh/Milly/denops-batch-accumulate)
 
-`accumulate` executes multiple denops functions together whenever possible to
+denops-batch-accumulate is helper library for [Denops][].
+
+`accumulate` calls multiple denops functions together whenever possible to
 reduce RPC overhead.
 
 `accumulate` preserves the structure of the complex object returned by the
 `executor` and resolves Promise it contains.
 
+[Denops]: https://github.com/vim-denops/denops.vim
+
 ## Example
 
 ```typescript
-import { Denops } from "https://deno.land/x/denops_core@v5.0.0/mod.ts";
-import * as fn from "https://deno.land/x/denops_std@v5.0.1/function/mod.ts";
-import { accumulate } from "https://deno.land/x/denops_accumulate/batch/accumulate.ts";
+import { assertType, IsExact } from "jsr:@std/testing/types";
+import { Denops } from "jsr:@denops/core";
+import * as fn from "jsr:@denops/std/function";
+import { accumulate } from "jsr:@milly/denops-batch-accumulate";
 
 export async function main(denops: Denops): Promise<void> {
   const results = await accumulate(denops, async (denops) => {
@@ -28,17 +34,13 @@ export async function main(denops: Denops): Promise<void> {
       };
     });
   });
+  assertType<
+    IsExact<
+      typeof results,
+      { lnum: number; keyword: string; len: number; }[]
+    >
+  >(true);
 }
-```
-
-And the type of `results` are:
-
-```typescript
-const results: {
-  lnum: number;
-  keyword: string;
-  len: number;
-}[];
 ```
 
 In the case of the example, the following 3 RPCs are called.
