@@ -1,0 +1,67 @@
+name: Benchmark
+
+on:
+  pull_request:
+    paths:
+      - "**_bench.ts"
+      - ".github/workflows/bench.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail {0}
+
+jobs:
+  bench:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+        deno_version:
+          - "1.x"
+        host_version:
+          - vim: "v9.1.0448"
+            nvim: "v0.10.0"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v1
+        id: setup-deno
+        with:
+          deno-version: "${{ matrix.deno_version }}"
+
+      - name: Get denops
+        run: |
+          git clone https://github.com/vim-denops/denops.vim /tmp/denops.vim
+          echo "DENOPS_TEST_DENOPS_PATH=/tmp/denops.vim" >> "$GITHUB_ENV"
+
+      - uses: rhysd/action-setup-vim@v1
+        id: vim
+        with:
+          version: "${{ matrix.host_version.vim }}"
+
+      - uses: rhysd/action-setup-vim@v1
+        id: nvim
+        with:
+          neovim: true
+          version: "${{ matrix.host_version.nvim }}"
+
+      - name: Export executables
+        run: |
+          echo "DENOPS_TEST_VIM_EXECUTABLE=${{ steps.vim.outputs.executable }}" >> "$GITHUB_ENV"
+          echo "DENOPS_TEST_NVIM_EXECUTABLE=${{ steps.nvim.outputs.executable }}" >> "$GITHUB_ENV"
+
+      - name: Check versions
+        run: |
+          deno --version
+          ${DENOPS_TEST_VIM_EXECUTABLE} --version
+          ${DENOPS_TEST_NVIM_EXECUTABLE} --version
+
+      - name: Perform pre-cache
+        run: |
+          deno cache ${DENOPS_TEST_DENOPS_PATH}/denops/@denops-private/mod.ts ./batch/accumulate_bench.ts
+
+      - name: Run benchmark
+        run: deno task bench
+        timeout-minutes: 5
