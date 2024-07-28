@@ -147,15 +147,17 @@ class AccumulateHelper implements Denops {
  * export async function main(denops: Denops): Promise<void> {
  *   const results = await accumulate(denops, async (denops) => {
  *     const lines = await fn.getline(denops, 1, "$");
- *     return lines.map(async (line, index) => {
+ *     return await Promise.all(lines.map(async (line, index) => {
  *       const keyword = await fn.matchstr(denops, line, "\\k\\+");
+ *       const len = await fn.len(denops, keyword);
  *       return {
  *         lnum: index + 1,
  *         keyword,
- *         len: fn.len(denops, keyword),
+ *         len,
  *       };
- *     });
+ *     }));
  *   });
+ *
  *   assertType<
  *     IsExact<
  *       typeof results,
@@ -181,112 +183,20 @@ class AccumulateHelper implements Denops {
 export async function accumulate<T extends unknown>(
   denops: Denops,
   executor: (helper: Denops) => T,
-): Promise<Accumulate<T>> {
+): Promise<Awaited<T>> {
   const helper = new AccumulateHelper(denops);
   try {
     const resolver = AccumulateHelper.getCallsResolver(helper);
     const run = async () => {
       try {
-        const obj = executor(helper);
-        return await resolveResult(obj);
+        return await executor(helper);
       } finally {
         resolver.stop();
       }
     };
     const [result] = await Promise.all([run(), resolver.promise]);
-    return result as Accumulate<T>;
+    return result;
   } finally {
     AccumulateHelper.close(helper);
   }
 }
-
-const EMPTY_CONTAINER_VALUES = Promise.resolve([]);
-
-async function resolveResult(obj: unknown): Promise<unknown> {
-  obj = await obj;
-  if ((obj != null && typeof obj === "object") || typeof obj === "function") {
-    const objKeys = Object.keys(obj).filter(
-      (key) => Object.getOwnPropertyDescriptor(obj, key)?.writable,
-    );
-    const [containerValues, objValues] = await Promise.all([
-      obj instanceof Map
-        ? Promise.all([...obj].flat().map((v) => resolveResult(v)))
-        : obj instanceof Set
-        ? Promise.all([...obj].map((v) => resolveResult(v)))
-        : EMPTY_CONTAINER_VALUES,
-      Promise.all(
-        objKeys.map(
-          (key) => resolveResult((obj as Record<string, unknown>)[key]),
-        ),
-      ),
-    ]);
-    if (obj instanceof Map) {
-      obj.clear();
-      for (let i = 0; i < containerValues.length; i += 2) {
-        obj.set(containerValues[i], containerValues[i + 1]);
-      }
-    } else if (obj instanceof Set) {
-      obj.clear();
-      for (const value of containerValues) {
-        obj.add(value);
-      }
-    }
-    for (let i = 0; i < objKeys.length; ++i) {
-      (obj as Record<string, unknown>)[objKeys[i]] = objValues[i];
-    }
-  }
-  return obj;
-}
-
-// deno-lint-ignore no-explicit-any
-type AnyObject = Record<string, any>;
-// deno-lint-ignore no-explicit-any
-type AnyFunction = (...args: any[]) => any;
-// deno-lint-ignore no-explicit-any
-type AnyTuple = readonly [] | readonly [any, ...any[]];
-
-type MapMember = keyof Map<unknown, unknown>;
-type SetMember = keyof Set<unknown>;
-type ArrayMember = keyof Array<unknown>;
-
-type AwaitedDeep<T> = AwaitedDeepInner<Awaited<T>>;
-type AwaitedDeepInner<T> = T extends AnyObject
-  ? T extends Map<infer MapKey, infer MapValue> ? AwaitedContainer<
-      Map<AwaitedDeep<MapKey>, AwaitedDeep<MapValue>>,
-      Omit<T, MapMember>
-    >
-  : T extends Set<infer SetValue>
-    ? AwaitedContainer<Set<AwaitedDeep<SetValue>>, Omit<T, SetMember>>
-  : T extends AnyTuple
-    ? AwaitedContainer<AwaitedTuple<T>, Omit<T, ArrayMember | `${number}`>>
-  : T extends ReadonlyArray<infer ArrayValue>
-    ? AwaitedContainer<Array<AwaitedDeep<ArrayValue>>, Omit<T, ArrayMember>>
-  : T extends string ? AwaitedContainer<T, Omit<T, keyof string>>
-  : T extends number ? AwaitedContainer<T, Omit<T, keyof number>>
-  : T extends boolean ? AwaitedContainer<T, Omit<T, keyof boolean>>
-  : T extends bigint ? AwaitedContainer<T, Omit<T, keyof bigint>>
-  : AwaitedObject<T>
-  : T;
-
-type Unwrap<T, Extend extends AnyObject> = T extends Extend & infer U ? U : T;
-
-type AwaitedContainer<T, Extend extends AnyObject> = Extend extends
-  Record<string, never> ? T : Unwrap<T, Extend> & AwaitedObject<Extend>;
-
-// deno-lint-ignore no-explicit-any
-type AwaitedTuple<T extends readonly [...any[]]> = AwaitedTupleInner<
-  Unwrap<T, Omit<T, ArrayMember | `${number}`>>
->;
-type AwaitedTupleInner<T> = T extends readonly [infer A, ...infer R]
-  ? [AwaitedDeep<A>, ...AwaitedTupleInner<R>]
-  : [];
-
-type AwaitedObject<T extends AnyObject> = Simplify<AwaitedObjectComp<T>>;
-type AwaitedObjectComp<T extends AnyObject> = {
-  [K in keyof T]: T[K] extends AnyFunction ? T[K] : AwaitedDeep<T[K]>;
-};
-
-// deno-lint-ignore ban-types
-type Simplify<T> = { [K in keyof T]: T[K] } & {};
-
-type Accumulate<T> = AwaitedDeep<T>;
