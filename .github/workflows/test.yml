@@ -22,7 +22,7 @@ jobs:
         runner:
           - ubuntu-latest
         deno_version:
-          - "1.44.x"
+          - "1.45.x"
           - "1.x"
     runs-on: ${{ matrix.runner }}
     steps:
@@ -42,7 +42,7 @@ jobs:
         runner:
           - ubuntu-latest
         deno_version:
-          - "1.44.x"
+          - "1.45.x"
           - "1.x"
         host_version:
           - vim: "v9.1.0448"
