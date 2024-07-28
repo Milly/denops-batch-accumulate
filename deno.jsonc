@@ -1,6 +1,6 @@
 {
   "name": "@milly/denops-batch-accumulate",
-  "version": "1.0.0-pre3",
+  "version": "1.0.0-pre4",
   "exports": {
     ".": "./batch/accumulate.ts"
   },
