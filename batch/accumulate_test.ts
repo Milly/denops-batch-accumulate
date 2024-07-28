@@ -37,19 +37,6 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "foo"]],
     ]);
   });
-  await t.step("resolves number wrapper object", async () => {
-    using denops_batch = stubBatch(42);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(39 as number, {
-        bar: helper.call("strlen", "baz") as Promise<number>,
-      });
-    });
-    assertType<IsExact<typeof actual, number & { bar: number }>>(true);
-    assertEquals(actual, Object.assign(39, { bar: 42 }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [["strlen", "baz"]],
-    ]);
-  });
   await t.step("resolves string", async () => {
     using denops_batch = stubBatch("foo");
     const actual = await accumulate(mocked_denops, (helper) => {
@@ -59,19 +46,6 @@ Deno.test("accumulate()", async (t) => {
     assertEquals(actual, "foo");
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [["matchstr", "foo", ".*"]],
-    ]);
-  });
-  await t.step("resolves string wrapper object", async () => {
-    using denops_batch = stubBatch(42);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign("foo" as string, {
-        bar: helper.call("strlen", "baz") as Promise<number>,
-      });
-    });
-    assertType<IsExact<typeof actual, string & { bar: number }>>(true);
-    assertEquals(actual, Object.assign("foo", { bar: 42 }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [["strlen", "baz"]],
     ]);
   });
   await t.step("resolves boolean", async () => {
@@ -85,19 +59,6 @@ Deno.test("accumulate()", async (t) => {
       [["eval", "v:true"]],
     ]);
   });
-  await t.step("resolves boolean wrapper object", async () => {
-    using denops_batch = stubBatch(42);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(true as boolean, {
-        bar: helper.call("strlen", "baz") as Promise<number>,
-      });
-    });
-    assertType<IsExact<typeof actual, boolean & { bar: number }>>(true);
-    assertEquals(actual, Object.assign(true, { bar: 42 }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [["strlen", "baz"]],
-    ]);
-  });
   await t.step("resolves bigint", async () => {
     using denops_batch = stubBatch(42);
     const actual = await accumulate(mocked_denops, async (helper) => {
@@ -109,48 +70,14 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "foo"]],
     ]);
   });
-  await t.step("resolves bigint wrapper object", async () => {
-    using denops_batch = stubBatch(42);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(39n as bigint, {
-        bar: helper.call("strlen", "baz") as Promise<number>,
-      });
-    });
-    assertType<IsExact<typeof actual, bigint & { bar: number }>>(true);
-    assertEquals(actual, Object.assign(39n, { bar: 42 }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [["strlen", "baz"]],
-    ]);
-  });
-  await t.step("resolves Object", async () => {
-    using denops_batch = stubBatch(42, "a", true);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return {
-        a: helper.call("strlen", "foo") as Promise<number>,
-        b: helper.call("matchstr", "bar", "a") as Promise<string>,
-        c: helper.call("eval", "v:true") as Promise<boolean>,
-      };
-    });
-    assertType<
-      IsExact<typeof actual, { a: number; b: string; c: boolean }>
-    >(true);
-    assertEquals(actual, { a: 42, b: "a", c: true });
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
-      ],
-    ]);
-  });
   await t.step("resolves Tuple", async () => {
     using denops_batch = stubBatch(42, "a", true);
     const actual = await accumulate(mocked_denops, (helper) => {
-      return [
+      return Promise.all([
         helper.call("strlen", "foo") as Promise<number>,
         helper.call("matchstr", "bar", "a") as Promise<string>,
         helper.call("eval", "v:true") as Promise<boolean>,
-      ] as const;
+      ]);
     });
     assertType<IsExact<typeof actual, [number, string, boolean]>>(true);
     assertEquals(actual, [42, "a", true]);
@@ -162,78 +89,34 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Tuple extended", async () => {
-    using denops_batch = stubBatch(42, "a", true);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(
-        [
-          helper.call("strlen", "foo") as Promise<number>,
-          helper.call("matchstr", "bar", "a") as Promise<string>,
-        ] as const,
-        {
-          c: helper.call("eval", "v:true") as Promise<boolean>,
-        },
-      );
-    });
-    assertType<IsExact<typeof actual, [number, string] & { c: boolean }>>(true);
-    assertEquals(actual, Object.assign([42, "a"], { c: true }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
-      ],
-    ]);
-  });
   await t.step("resolves Array", async () => {
-    using denops_batch = stubBatch(42, "a", true);
+    using denops_batch = stubBatch(42, 123, 39);
     const actual = await accumulate(mocked_denops, (helper) => {
-      return [
-        helper.call("strlen", "foo") as Promise<number>,
-        helper.call("matchstr", "bar", "a") as Promise<string>,
-        helper.call("eval", "v:true") as Promise<boolean>,
-      ];
+      const items = ["foo", "bar", "baz"];
+      return Promise.all(items.map(
+        (item) => helper.call("strlen", item) as Promise<number>,
+      ));
     });
-    assertType<IsExact<typeof actual, (number | string | boolean)[]>>(true);
-    assertEquals(actual, [42, "a", true]);
+    assertType<IsExact<typeof actual, (number)[]>>(true);
+    assertEquals(actual, [42, 123, 39]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
-      ],
-    ]);
-  });
-  await t.step("resolves Array extended", async () => {
-    using denops_batch = stubBatch(42, "a", true);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign([
-        helper.call("strlen", "foo") as Promise<number>,
-        helper.call("matchstr", "bar", "a") as Promise<string>,
-      ], {
-        c: helper.call("eval", "v:true") as Promise<boolean>,
-      });
-    });
-    assertType<
-      IsExact<typeof actual, (number | string)[] & { c: boolean }>
-    >(true);
-    assertEquals(actual, Object.assign([42, "a"], { c: true }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
+        ["strlen", "bar"],
+        ["strlen", "baz"],
       ],
     ]);
   });
   await t.step("resolves Set", async () => {
     using denops_batch = stubBatch(42, 123, 39);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return new Set([
-        helper.call("strlen", "foo") as Promise<number>,
-        helper.call("matchstr", "bar", "a") as Promise<string>,
-        helper.call("strlen", "baz") as Promise<number>,
-      ]);
+    const actual = await accumulate(mocked_denops, async (helper) => {
+      return new Set(
+        await Promise.all([
+          helper.call("strlen", "foo") as Promise<number>,
+          helper.call("matchstr", "bar", "a") as Promise<string>,
+          helper.call("strlen", "baz") as Promise<number>,
+        ]),
+      );
     });
     assertType<IsExact<typeof actual, Set<number | string>>>(true);
     assertEquals(actual, new Set([42, 123, 39]));
@@ -245,141 +128,32 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Set extended", async () => {
-    using denops_batch = stubBatch(42, "a", true);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(
-        new Set([
-          helper.call("strlen", "foo") as Promise<number>,
-          helper.call("matchstr", "bar", "a") as Promise<string>,
-        ]),
-        {
-          c: helper.call("eval", "v:true") as Promise<boolean>,
-        },
-      );
-    });
-    assertType<
-      IsExact<typeof actual, Set<number | string> & { c: boolean }>
-    >(true);
-    assertEquals(actual, Object.assign(new Set([42, "a"]), { c: true }));
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
-      ],
-    ]);
-  });
   await t.step("resolves Map values", async () => {
-    using denops_batch = stubBatch(42, 39);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return new Map([
-        ["a", helper.call("strlen", "foo") as Promise<number>],
-        ["b", helper.call("strlen", "bar") as Promise<number>],
-      ]);
+    using denops_batch = stubBatch(42, 123, 39);
+    const actual = await accumulate(mocked_denops, async (helper) => {
+      const items = ["foo", "bar", "baz"];
+      return new Map(
+        await Promise.all(
+          items.map(async (item) =>
+            [item, await helper.call("strlen", item) as number] as const
+          ),
+        ),
+      );
     });
     assertType<IsExact<typeof actual, Map<string, number>>>(true);
     assertEquals(
       actual,
       new Map([
-        ["a", 42],
-        ["b", 39],
+        ["foo", 42],
+        ["bar", 123],
+        ["baz", 39],
       ]),
     );
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
         ["strlen", "bar"],
-      ],
-    ]);
-  });
-  await t.step("resolves Map keys", async () => {
-    using denops_batch = stubBatch(42, 39);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return new Map([
-        [helper.call("strlen", "foo") as Promise<number>, "a"],
-        [helper.call("strlen", "bar") as Promise<number>, "b"],
-      ]);
-    });
-    assertType<IsExact<typeof actual, Map<number, string>>>(true);
-    assertEquals(
-      actual,
-      new Map([[42, "a"], [39, "b"]]),
-    );
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["strlen", "bar"],
-      ],
-    ]);
-  });
-  await t.step("resolves Map extended", async () => {
-    using denops_batch = stubBatch(42, "b", true);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return Object.assign(
-        new Map<number | Promise<number>, string | Promise<string>>([
-          [helper.call("strlen", "foo") as Promise<number>, "a"],
-          [39, helper.call("matchstr", "bar", "b") as Promise<string>],
-        ]),
-        {
-          c: helper.call("eval", "v:true") as Promise<boolean>,
-        },
-      );
-    });
-    assertType<
-      IsExact<typeof actual, Map<number, string> & { c: boolean }>
-    >(true);
-    assertEquals(
-      actual,
-      Object.assign(new Map([[42, "a"], [39, "b"]]), { c: true }),
-    );
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "b"],
-        ["eval", "v:true"],
-      ],
-    ]);
-  });
-  await t.step("resolves nested Map, Set, Array, Object", async () => {
-    using denops_batch = stubBatch(42, "a", 39, 244, 8);
-    const actual = await accumulate(mocked_denops, (helper) => {
-      return new Map([
-        [
-          helper.call("strlen", "foo") as Promise<number>,
-          {
-            a: new Set([
-              helper.call("matchstr", "bar", "a") as Promise<string>,
-            ]),
-            b: ["baz", "qux", "quux"].map((s) => {
-              return helper.call("strlen", s) as Promise<number>;
-            }),
-          },
-        ],
-      ]);
-    });
-    assertType<
-      IsExact<typeof actual, Map<number, { a: Set<string>; b: number[] }>>
-    >(true);
-    assertEquals(
-      actual,
-      new Map([
-        [
-          42,
-          {
-            a: new Set(["a"]),
-            b: [39, 244, 8],
-          },
-        ],
-      ]),
-    );
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
         ["strlen", "baz"],
-        ["strlen", "qux"],
-        ["strlen", "quux"],
       ],
     ]);
   });
@@ -390,12 +164,12 @@ Deno.test("accumulate()", async (t) => {
         helper.call("strlen", "foo"),
         helper.call("strlen", "bar"),
       ]);
-      return [
+      return await Promise.all([
         helper.call("stridx", "bar", "a", a) as Promise<number>,
         helper.call("stridx", "baz", "b", b) as Promise<number>,
-      ];
+      ]);
     });
-    assertType<IsExact<typeof actual, number[]>>(true);
+    assertType<IsExact<typeof actual, [number, number]>>(true);
     assertEquals(actual, [123, 456]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
@@ -421,13 +195,13 @@ Deno.test("accumulate()", async (t) => {
           })(),
         ] as const,
       );
-      return [
+      return await Promise.all([
         helper.call("stridx", "bar", "a", a) as Promise<number>,
         (async () => {
           await delay(100);
           return helper.call("stridx", "baz", "b", b) as Promise<number>;
         })(),
-      ] as const;
+      ]);
     });
     assertType<IsExact<typeof actual, [number, number]>>(true);
     assertEquals(actual, [123, 456]);
@@ -443,18 +217,21 @@ Deno.test("accumulate()", async (t) => {
   await t.step("resolves nested 'accumulate()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
-      return {
-        a: helper.call("strlen", "foo") as Promise<number>,
-        b: accumulate(helper, (innerHelper) => {
-          return [
+      return Promise.all([
+        helper.call("strlen", "foo") as Promise<number>,
+        accumulate(helper, (innerHelper) => {
+          return Promise.all([
             innerHelper.call("stridx", "bar", "a") as Promise<number>,
             innerHelper.call("stridx", "baz", "z") as Promise<number>,
-          ];
+          ]);
         }),
-        c: helper.call("strlen", "quux") as Promise<number>,
-      };
+        helper.call("strlen", "quux") as Promise<number>,
+      ]);
     });
-    assertEquals(actual, { a: 1, b: [3, 4], c: 2 });
+    assertType<
+      IsExact<typeof actual, [number, [number, number], number]>
+    >(true);
+    assertEquals(actual, [1, [3, 4], 2]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
@@ -467,16 +244,17 @@ Deno.test("accumulate()", async (t) => {
   await t.step("resolves nested 'batch()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
-      return {
-        a: helper.call("strlen", "foo") as Promise<number>,
-        b: batch(helper, async (batchHelper) => {
+      return Promise.all([
+        helper.call("strlen", "foo") as Promise<number>,
+        batch(helper, async (batchHelper) => {
           await batchHelper.call("stridx", "bar", "a");
           await batchHelper.call("stridx", "baz", "z");
         }),
-        c: helper.call("strlen", "quux") as Promise<number>,
-      };
+        helper.call("strlen", "quux") as Promise<number>,
+      ]);
     });
-    assertEquals(actual, { a: 1, b: undefined, c: 2 });
+    assertType<IsExact<typeof actual, [number, void, number]>>(true);
+    assertEquals(actual, [1, undefined, 2]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
@@ -489,16 +267,19 @@ Deno.test("accumulate()", async (t) => {
   await t.step("resolves nested 'collect()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
-      return {
-        a: helper.call("strlen", "foo") as Promise<number>,
-        b: collect(helper, (collectHelper) => [
+      return Promise.all([
+        helper.call("strlen", "foo") as Promise<number>,
+        collect(helper, (collectHelper) => [
           collectHelper.call("stridx", "bar", "a") as Promise<number>,
           collectHelper.call("stridx", "baz", "z") as Promise<number>,
         ]),
-        c: helper.call("strlen", "quux") as Promise<number>,
-      };
+        helper.call("strlen", "quux") as Promise<number>,
+      ]);
     });
-    assertEquals(actual, { a: 1, b: [3, 4], c: 2 });
+    assertType<
+      IsExact<typeof actual, [number, [number, number], number]>
+    >(true);
+    assertEquals(actual, [1, [3, 4], 2]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
@@ -535,32 +316,32 @@ test({
     });
     await t.step("resolves 'helper.eval()' sequentially", async () => {
       await denops.cmd("let g:denops_accumulate_test = 10");
-      const results = await accumulate(denops, (helper) => [
-        helper.eval("g:denops_accumulate_test + 1"),
-        helper.eval("g:denops_accumulate_test - 1"),
-        helper.eval("g:denops_accumulate_test * 10"),
-      ]);
+      const results = await accumulate(denops, (helper) =>
+        Promise.all([
+          helper.eval("g:denops_accumulate_test + 1"),
+          helper.eval("g:denops_accumulate_test - 1"),
+          helper.eval("g:denops_accumulate_test * 10"),
+        ]));
       assertEquals(results, [11, 9, 100]);
     });
     await t.step("resolves 'helper.batch()' sequentially", async () => {
       await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) => [
-        helper.batch(
-          ["eval", "g:denops_accumulate_test + 1"],
-          ["eval", "g:denops_accumulate_test - 1"],
-        ),
-        helper.batch(
-          ["eval", "g:denops_accumulate_test * 10"],
-        ),
-      ]);
+      const results = await accumulate(denops, (helper) =>
+        Promise.all([
+          helper.batch(
+            ["eval", "g:denops_accumulate_test + 1"],
+            ["eval", "g:denops_accumulate_test - 1"],
+          ),
+          helper.batch(
+            ["eval", "g:denops_accumulate_test * 10"],
+          ),
+        ]));
       assertEquals(results, [[21, 19], [200]]);
     });
     await t.step("resolves 'helper.batch()' with empty", async () => {
       await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) => [
-        helper.batch(),
-      ]);
-      assertEquals(results, [[]]);
+      const results = await accumulate(denops, (helper) => helper.batch());
+      assertEquals(results, []);
     });
     await t.step("resolves 'helper.dispatch()' sequentially", async () => {
       using denops_dispatch = stub(
@@ -569,10 +350,11 @@ test({
         resolvesNext(["one", "two"]),
       );
       await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) => [
-        helper.dispatch("someplugin", "foomethod", "bararg", 42, false),
-        helper.dispatch("otherplugin", "barmethod", true, "quxarg", 0),
-      ]);
+      const results = await accumulate(denops, (helper) =>
+        Promise.all([
+          helper.dispatch("someplugin", "foomethod", "bararg", 42, false),
+          helper.dispatch("otherplugin", "barmethod", true, "quxarg", 0),
+        ]));
       assertEquals(results, ["one", "two"]);
       assertEquals(denops_dispatch.calls.map((c) => c.args), [
         ["someplugin", "foomethod", "bararg", 42, false],
