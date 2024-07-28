@@ -1,4 +1,3 @@
-import { debounce } from "@std/async";
 import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 
 type Call = [string, ...unknown[]];
@@ -10,7 +9,6 @@ class AccumulateHelper implements Denops {
   #closed = false;
   #resolved = Promise.withResolvers<void>();
   #called = Promise.withResolvers<void>();
-  #onCalled = debounce(() => this.#called.resolve(), 0);
 
   constructor(denops: Denops) {
     this.#denops = denops;
@@ -95,6 +93,15 @@ class AccumulateHelper implements Denops {
         "AccumulateHelper instance is not available outside of 'accumulate' block",
       );
     }
+  }
+
+  #onCalled(): void {
+    const callCount = this.#calls.length;
+    queueMicrotask(() => {
+      if (callCount === this.#calls.length) {
+        this.#called.resolve();
+      }
+    });
   }
 
   #getCalls(): Call[] {
