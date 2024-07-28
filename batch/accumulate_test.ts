@@ -580,6 +580,7 @@ test({
       ]);
     });
     await t.step("if the executor throws", async (t) => {
+      using denops_batch = spy(denops, "batch");
       await t.step("rejects an error", async () => {
         await assertRejects(
           async () => {
@@ -591,6 +592,9 @@ test({
           Error,
           "test error",
         );
+      });
+      await t.step("does not calls pending batch 'calls'", () => {
+        assertSpyCalls(denops_batch, 0);
       });
     });
     await t.step("if the executor rejects", async (t) => {
