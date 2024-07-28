@@ -508,66 +508,6 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("rejects an error that thrown in the executor", async () => {
-    using denops_batch = stubBatch();
-    await assertRejects(
-      async () => {
-        await accumulate(mocked_denops, (_helper) => {
-          throw new Error("test error");
-        });
-      },
-      Error,
-      "test error",
-    );
-    assertSpyCalls(denops_batch, 0);
-  });
-  await t.step("rejects an error that rejected in the executor", async () => {
-    using denops_batch = stubBatch();
-    await assertRejects(
-      async () => {
-        await accumulate(mocked_denops, (_helper) => {
-          return Promise.reject(new Error("test error"));
-        });
-      },
-      Error,
-      "test error",
-    );
-    assertSpyCalls(denops_batch, 0);
-  });
-  await t.step(
-    "rejects an error that thrown after 'helper.call()' calls",
-    async () => {
-      using denops_batch = stubBatch(42);
-      await assertRejects(
-        async () => {
-          await accumulate(mocked_denops, (helper) => {
-            helper.call("strlen", "foo");
-            throw new Error("test error");
-          });
-        },
-        Error,
-        "test error",
-      );
-      assertSpyCalls(denops_batch, 1);
-    },
-  );
-  await t.step(
-    "rejects an error that rejects after 'helper.call()' calls",
-    async () => {
-      using denops_batch = stubBatch(42);
-      await assertRejects(
-        async () => {
-          await accumulate(mocked_denops, async (helper) => {
-            await helper.call("strlen", "foo");
-            throw new Error("test error");
-          });
-        },
-        Error,
-        "test error",
-      );
-      assertSpyCalls(denops_batch, 1);
-    },
-  );
 });
 
 test({
@@ -575,11 +515,12 @@ test({
   name: "accumulate()",
   fn: async (denops, t) => {
     await t.step("resolves 'helper.call()' sequentially", async () => {
-      const results = await accumulate(denops, (helper) => [
-        helper.call("range", 0),
-        helper.call("range", 1),
-        helper.call("range", 2),
-      ]);
+      const results = await accumulate(denops, (helper) =>
+        Promise.all([
+          helper.call("range", 0),
+          helper.call("range", 1),
+          helper.call("range", 2),
+        ]));
       assertEquals(results, [[], [0], [0, 1]]);
     });
     await t.step("resolves 'helper.cmd()' sequentially", async () => {
@@ -637,6 +578,34 @@ test({
         ["someplugin", "foomethod", "bararg", 42, false],
         ["otherplugin", "barmethod", true, "quxarg", 0],
       ]);
+    });
+    await t.step("if the executor throws", async (t) => {
+      await t.step("rejects an error", async () => {
+        await assertRejects(
+          async () => {
+            await accumulate(denops, (helper) => {
+              helper.call("strlen", "foo");
+              throw new Error("test error");
+            });
+          },
+          Error,
+          "test error",
+        );
+      });
+    });
+    await t.step("if the executor rejects", async (t) => {
+      await t.step("rejects an error", async () => {
+        await assertRejects(
+          async () => {
+            await accumulate(denops, async (helper) => {
+              await helper.call("strlen", "foo");
+              throw new Error("test error");
+            });
+          },
+          Error,
+          "test error",
+        );
+      });
     });
     await t.step("rejects an error when 'helper.redraw()' calls", async () => {
       await assertRejects(
