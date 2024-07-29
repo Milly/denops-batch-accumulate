@@ -552,6 +552,7 @@ test({
             async () => {
               await helper_outside.call("range", 0);
             },
+            Error,
             "not available outside",
           );
         });
@@ -571,6 +572,7 @@ test({
             async () => {
               await helper_outside.cmd("echo 'hello'");
             },
+            Error,
             "not available outside",
           );
         });
@@ -590,6 +592,7 @@ test({
             async () => {
               await helper_outside.eval("123");
             },
+            Error,
             "not available outside",
           );
         });
@@ -609,6 +612,7 @@ test({
             async () => {
               await helper_outside.batch(["range", 0]);
             },
+            Error,
             "not available outside",
           );
         });
