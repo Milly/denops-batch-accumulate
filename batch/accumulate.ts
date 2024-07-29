@@ -185,18 +185,15 @@ export async function accumulate<T extends unknown>(
   executor: (helper: Denops) => T,
 ): Promise<Awaited<T>> {
   const helper = new AccumulateHelper(denops);
-  try {
-    const resolver = AccumulateHelper.getCallsResolver(helper);
-    const run = async () => {
-      try {
-        return await executor(helper);
-      } finally {
-        resolver.stop();
-      }
-    };
-    const [result] = await Promise.all([run(), resolver.promise]);
-    return result;
-  } finally {
-    AccumulateHelper.close(helper);
-  }
+  const resolver = AccumulateHelper.getCallsResolver(helper);
+  const run = async () => {
+    try {
+      return await executor(helper);
+    } finally {
+      resolver.stop();
+      AccumulateHelper.close(helper);
+    }
+  };
+  const [result] = await Promise.all([run(), resolver.promise]);
+  return result;
 }

@@ -449,6 +449,24 @@ test({
         ["otherplugin", "barmethod", true, "quxarg", 0],
       ]);
     });
+    await t.step("if the executor resolves", async (t) => {
+      using denops_batch = spy(denops, "batch");
+      let p: Promise<void> = Promise.resolve();
+      await accumulate(denops, (helper) => {
+        p = (async () => {
+          await helper.call("strlen", "foo");
+          await helper.call("strlen", "bar");
+        })();
+      });
+      await t.step("calls pending batch 'calls'", () => {
+        assertEquals(denops_batch.calls.map((c) => c.args), [
+          [["strlen", "foo"]],
+        ]);
+      });
+      await t.step("rejects subsequent batch 'calls'", async () => {
+        await assertRejects(() => p, Error, "not available outside");
+      });
+    });
     await t.step("if the executor throws", async (t) => {
       using denops_batch = spy(denops, "batch");
       await t.step("rejects an error", async () => {
