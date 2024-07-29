@@ -2,9 +2,6 @@ import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 
 type Call = [string, ...unknown[]];
 
-declare const WillStop: unique symbol;
-const WILL_STOP = {} as typeof WillStop;
-
 class AccumulateHelper implements Denops {
   #denops: Denops;
   #calls: Call[] = [];
@@ -18,10 +15,10 @@ class AccumulateHelper implements Denops {
   }
 
   static getCallsResolver(helper: AccumulateHelper) {
-    const willStop = Promise.withResolvers<typeof WILL_STOP>();
+    const willStop = Promise.withResolvers<void>();
     return {
       promise: helper.#resolveCalls(willStop.promise),
-      stop: () => willStop.resolve(WILL_STOP),
+      stop: () => willStop.resolve(),
     };
   }
 
@@ -121,11 +118,11 @@ class AccumulateHelper implements Denops {
     }
   }
 
-  async #resolveCalls(willStop: Promise<typeof WILL_STOP>): Promise<void> {
+  async #resolveCalls(willStop: Promise<void>): Promise<void> {
     for (;;) {
-      const state = await Promise.race([willStop, this.#called.promise]);
-      if (state === WILL_STOP) break;
+      await Promise.race([willStop, this.#called.promise]);
       const calls = this.#dequeueCalls();
+      if (calls.length === 0) break;
       const results = await this.#denops.batch(...calls);
       this.#addResults(results);
     }

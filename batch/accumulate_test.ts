@@ -469,11 +469,15 @@ test({
     });
     await t.step("if the executor throws", async (t) => {
       using denops_batch = spy(denops, "batch");
+      let p: Promise<void> = Promise.resolve();
       await t.step("rejects an error", async () => {
         await assertRejects(
           async () => {
             await accumulate(denops, (helper) => {
-              helper.call("strlen", "foo");
+              p = (async () => {
+                await helper.call("strlen", "foo");
+                await helper.call("strlen", "bar");
+              })();
               throw new Error("test error");
             });
           },
@@ -481,8 +485,13 @@ test({
           "test error",
         );
       });
-      await t.step("does not calls pending batch 'calls'", () => {
-        assertSpyCalls(denops_batch, 0);
+      await t.step("calls pending batch 'calls'", () => {
+        assertEquals(denops_batch.calls.map((c) => c.args), [
+          [["strlen", "foo"]],
+        ]);
+      });
+      await t.step("rejects subsequent batch 'calls'", async () => {
+        await assertRejects(() => p, Error, "not available outside");
       });
     });
     await t.step("if the executor rejects", async (t) => {
