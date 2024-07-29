@@ -225,35 +225,81 @@ Deno.test("accumulate()", async (t) => {
     ]);
   });
   await t.step("resolves delayed Promise", async () => {
-    using denops_batch = stubBatch(42, 39, 123, 456);
+    const values = [42, 123, 39];
+    using denops_batch = stub(
+      mocked_denops,
+      "batch",
+      async (...calls) => {
+        if (calls.length > values.length) {
+          return Promise.reject(new Error("Too few values"));
+        }
+        const results = values.splice(0, calls.length);
+        await delay(50);
+        return results;
+      },
+    );
     const actual = await accumulate(mocked_denops, async (helper) => {
-      const [a, b] = await Promise.all(
+      return await Promise.all(
         [
           helper.call("strlen", "foo") as Promise<number>,
           (async () => {
-            const res = helper.call("strlen", "bar") as Promise<number>;
+            const b = helper.call("strlen", "bar") as Promise<number>;
             await delay(100);
-            return res;
+            const c = helper.call("strlen", "baz") as Promise<number>;
+            return Promise.all([b, c]);
           })(),
         ] as const,
       );
-      return await Promise.all([
-        helper.call("stridx", "bar", "a", a) as Promise<number>,
-        (async () => {
-          await delay(100);
-          return helper.call("stridx", "baz", "b", b) as Promise<number>;
-        })(),
-      ]);
     });
-    assertType<IsExact<typeof actual, [number, number]>>(true);
-    assertEquals(actual, [123, 456]);
+    assertType<
+      IsExact<typeof actual, [number, [number, number]]>
+    >(true);
+    assertEquals(actual, [42, [123, 39]]);
     assertEquals(denops_batch.calls.map((c) => c.args), [
       [
         ["strlen", "foo"],
         ["strlen", "bar"],
       ],
-      [["stridx", "bar", "a", 42]],
-      [["stridx", "baz", "b", 39]],
+      [["strlen", "baz"]],
+    ]);
+  });
+  await t.step("resolves 0 delayed Promise", async () => {
+    const values = [42, 123, 39];
+    using denops_batch = stub(
+      mocked_denops,
+      "batch",
+      async (...calls) => {
+        if (calls.length > values.length) {
+          return Promise.reject(new Error("Too few values"));
+        }
+        const results = values.splice(0, calls.length);
+        await delay(50);
+        return results;
+      },
+    );
+    const actual = await accumulate(mocked_denops, async (helper) => {
+      return await Promise.all(
+        [
+          helper.call("strlen", "foo") as Promise<number>,
+          (async () => {
+            const b = helper.call("strlen", "bar") as Promise<number>;
+            await delay(0);
+            const c = helper.call("strlen", "baz") as Promise<number>;
+            return Promise.all([b, c]);
+          })(),
+        ] as const,
+      );
+    });
+    assertType<
+      IsExact<typeof actual, [number, [number, number]]>
+    >(true);
+    assertEquals(actual, [42, [123, 39]]);
+    assertEquals(denops_batch.calls.map((c) => c.args), [
+      [
+        ["strlen", "foo"],
+        ["strlen", "bar"],
+      ],
+      [["strlen", "baz"]],
     ]);
   });
   await t.step("resolves nested 'accumulate()'", async () => {
