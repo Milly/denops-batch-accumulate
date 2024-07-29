@@ -90,6 +90,28 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "foo"]],
     ]);
   });
+  await t.step("resolves Object", async () => {
+    using denops_batch = stubBatch(42, "a", true);
+    const actual = await accumulate(mocked_denops, async (helper) => {
+      const [a, b, c] = await Promise.all([
+        helper.call("strlen", "foo") as Promise<number>,
+        helper.call("matchstr", "bar", "a") as Promise<string>,
+        helper.call("eval", "v:true") as Promise<boolean>,
+      ]);
+      return { a, b, c };
+    });
+    assertType<
+      IsExact<typeof actual, { a: number; b: string; c: boolean }>
+    >(true);
+    assertEquals(actual, { a: 42, b: "a", c: true });
+    assertEquals(denops_batch.calls.map((c) => c.args), [
+      [
+        ["strlen", "foo"],
+        ["matchstr", "bar", "a"],
+        ["eval", "v:true"],
+      ],
+    ]);
+  });
   await t.step("resolves Tuple", async () => {
     using denops_batch = stubBatch(42, "a", true);
     const actual = await accumulate(mocked_denops, (helper) => {
@@ -124,28 +146,6 @@ Deno.test("accumulate()", async (t) => {
         ["strlen", "foo"],
         ["strlen", "bar"],
         ["strlen", "baz"],
-      ],
-    ]);
-  });
-  await t.step("resolves Object", async () => {
-    using denops_batch = stubBatch(42, "a", true);
-    const actual = await accumulate(mocked_denops, async (helper) => {
-      const [a, b, c] = await Promise.all([
-        helper.call("strlen", "foo") as Promise<number>,
-        helper.call("matchstr", "bar", "a") as Promise<string>,
-        helper.call("eval", "v:true") as Promise<boolean>,
-      ]);
-      return { a, b, c };
-    });
-    assertType<
-      IsExact<typeof actual, { a: number; b: string; c: boolean }>
-    >(true);
-    assertEquals(actual, { a: 42, b: "a", c: true });
-    assertEquals(denops_batch.calls.map((c) => c.args), [
-      [
-        ["strlen", "foo"],
-        ["matchstr", "bar", "a"],
-        ["eval", "v:true"],
       ],
     ]);
   });
@@ -438,9 +438,9 @@ test({
     await t.step("rejects an error when 'helper.redraw()' calls", async () => {
       await assertRejects(
         async () => {
-          await accumulate(denops, (helper) => [
-            helper.redraw(),
-          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.redraw();
+          });
         },
         Error,
         "method is not available",
@@ -449,9 +449,9 @@ test({
     await t.step("rejects an error when 'helper.call()' rejects", async () => {
       await assertRejects(
         async () => {
-          await accumulate(denops, (helper) => [
-            helper.call("notexistsfn"),
-          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.call("notexistsfn");
+          });
         },
         Error,
         "Unknown function: notexistsfn",
@@ -460,9 +460,9 @@ test({
     await t.step("rejects an error when 'helper.cmd()' rejects", async () => {
       await assertRejects(
         async () => {
-          await accumulate(denops, (helper) => [
-            helper.cmd("call notexistsfn()"),
-          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.cmd("call notexistsfn()");
+          });
         },
         Error,
         "Unknown function: notexistsfn",
@@ -471,9 +471,9 @@ test({
     await t.step("rejects an error when 'helper.eval()' rejects", async () => {
       await assertRejects(
         async () => {
-          await accumulate(denops, (helper) => [
-            helper.eval("notexistsfn()"),
-          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.eval("notexistsfn()");
+          });
         },
         Error,
         "Unknown function: notexistsfn",
@@ -482,12 +482,12 @@ test({
     await t.step("rejects an error when 'helper.batch()' rejects", async () => {
       await assertRejects(
         async () => {
-          await accumulate(denops, (helper) => [
-            helper.batch(
+          await accumulate(denops, async (helper) => {
+            await helper.batch(
               ["range", 0],
               ["notexistsfn"],
-            ),
-          ]);
+            );
+          });
         },
         Error,
         "Unknown function: notexistsfn",
