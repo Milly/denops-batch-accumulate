@@ -4,29 +4,25 @@ import { assertType, type IsExact } from "@std/testing/types";
 import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
 import { BatchError, type Denops } from "@denops/core";
 import { batch, collect } from "@denops/std/batch";
-import { test } from "@denops/test";
+import { DenopsStub, test } from "@denops/test";
 
 import { accumulate } from "./accumulate.ts";
 
-const mocked_denops = {
-  batch() {},
-  dispatch() {},
-} as unknown as Denops;
+Deno.test("accumulate() resolves", async (t) => {
+  const mocked_denops = new DenopsStub();
+  const stubBatch = (...values: unknown[]) =>
+    stub(
+      mocked_denops,
+      "batch",
+      (...calls) => {
+        if (calls.length > values.length) {
+          return Promise.reject(new Error("Too few values"));
+        }
+        return Promise.resolve(values.splice(0, calls.length));
+      },
+    );
 
-const stubBatch = (...values: unknown[]) =>
-  stub(
-    mocked_denops,
-    "batch",
-    (...calls) => {
-      if (calls.length > values.length) {
-        return Promise.reject(new Error("Too few values"));
-      }
-      return Promise.resolve(values.splice(0, calls.length));
-    },
-  );
-
-Deno.test("accumulate()", async (t) => {
-  await t.step("resolves undefined", async () => {
+  await t.step("undefined", async () => {
     using denops_batch = stubBatch(undefined);
     const actual = await accumulate(mocked_denops, (_helper) => {
       return undefined;
@@ -35,7 +31,7 @@ Deno.test("accumulate()", async (t) => {
     assertEquals(actual, undefined);
     assertSpyCalls(denops_batch, 0);
   });
-  await t.step("resolves null", async () => {
+  await t.step("null", async () => {
     using denops_batch = stubBatch(null);
     const actual = await accumulate(mocked_denops, (helper) => {
       return helper.call("eval", "v:none") as Promise<null>;
@@ -46,7 +42,7 @@ Deno.test("accumulate()", async (t) => {
       [["eval", "v:none"]],
     ]);
   });
-  await t.step("resolves number", async () => {
+  await t.step("number", async () => {
     using denops_batch = stubBatch(42);
     const actual = await accumulate(mocked_denops, (helper) => {
       return helper.call("strlen", "foo") as Promise<number>;
@@ -57,7 +53,7 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "foo"]],
     ]);
   });
-  await t.step("resolves string", async () => {
+  await t.step("string", async () => {
     using denops_batch = stubBatch("foo");
     const actual = await accumulate(mocked_denops, (helper) => {
       return helper.call("matchstr", "foo", ".*") as Promise<string>;
@@ -68,7 +64,7 @@ Deno.test("accumulate()", async (t) => {
       [["matchstr", "foo", ".*"]],
     ]);
   });
-  await t.step("resolves boolean", async () => {
+  await t.step("boolean", async () => {
     using denops_batch = stubBatch(true);
     const actual = await accumulate(mocked_denops, (helper) => {
       return helper.call("eval", "v:true") as Promise<boolean>;
@@ -79,7 +75,7 @@ Deno.test("accumulate()", async (t) => {
       [["eval", "v:true"]],
     ]);
   });
-  await t.step("resolves bigint", async () => {
+  await t.step("bigint", async () => {
     using denops_batch = stubBatch(42);
     const actual = await accumulate(mocked_denops, async (helper) => {
       return BigInt(await helper.call("strlen", "foo") as number);
@@ -90,7 +86,7 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "foo"]],
     ]);
   });
-  await t.step("resolves Object", async () => {
+  await t.step("Object", async () => {
     using denops_batch = stubBatch(42, "a", true);
     const actual = await accumulate(mocked_denops, async (helper) => {
       const [a, b, c] = await Promise.all([
@@ -112,7 +108,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Tuple", async () => {
+  await t.step("Tuple", async () => {
     using denops_batch = stubBatch(42, "a", true);
     const actual = await accumulate(mocked_denops, (helper) => {
       return Promise.all([
@@ -131,7 +127,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Array", async () => {
+  await t.step("Array", async () => {
     using denops_batch = stubBatch(42, 123, 39);
     const actual = await accumulate(mocked_denops, (helper) => {
       const items = ["foo", "bar", "baz"];
@@ -149,7 +145,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Set", async () => {
+  await t.step("Set", async () => {
     using denops_batch = stubBatch(42, 123, 39);
     const actual = await accumulate(mocked_denops, async (helper) => {
       return new Set(
@@ -170,7 +166,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves Map values", async () => {
+  await t.step("Map values", async () => {
     using denops_batch = stubBatch(42, 123, 39);
     const actual = await accumulate(mocked_denops, async (helper) => {
       const items = ["foo", "bar", "baz"];
@@ -199,7 +195,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves chained Promise", async () => {
+  await t.step("chained Promise", async () => {
     using denops_batch = stubBatch(42, 39, 123, 456);
     const actual = await accumulate(mocked_denops, async (helper) => {
       const [a, b] = await Promise.all([
@@ -224,7 +220,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves delayed Promise", async () => {
+  await t.step("delayed Promise", async () => {
     const values = [42, 123, 39];
     using denops_batch = stub(
       mocked_denops,
@@ -263,7 +259,7 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "baz"]],
     ]);
   });
-  await t.step("resolves 0 delayed Promise", async () => {
+  await t.step("0 delayed Promise", async () => {
     const values = [42, 123, 39];
     using denops_batch = stub(
       mocked_denops,
@@ -302,7 +298,7 @@ Deno.test("accumulate()", async (t) => {
       [["strlen", "baz"]],
     ]);
   });
-  await t.step("resolves nested 'accumulate()'", async () => {
+  await t.step("nested 'accumulate()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
       return Promise.all([
@@ -329,7 +325,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves nested 'batch()'", async () => {
+  await t.step("nested 'batch()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
       return Promise.all([
@@ -352,7 +348,7 @@ Deno.test("accumulate()", async (t) => {
       ],
     ]);
   });
-  await t.step("resolves nested 'collect()'", async () => {
+  await t.step("nested 'collect()'", async () => {
     using denops_batch = stubBatch(1, 2, 3, 4);
     const actual = await accumulate(mocked_denops, (helper) => {
       return Promise.all([
@@ -383,73 +379,13 @@ test({
   mode: "all",
   name: "accumulate()",
   fn: async (denops, t) => {
-    await t.step("resolves 'helper.call()' sequentially", async () => {
-      const results = await accumulate(denops, (helper) =>
-        Promise.all([
-          helper.call("range", 0),
-          helper.call("range", 1),
-          helper.call("range", 2),
-        ]));
-      assertEquals(results, [[], [0], [0, 1]]);
-    });
-    await t.step("resolves 'helper.cmd()' sequentially", async () => {
-      await denops.cmd("let g:denops_accumulate_test = []");
-      const results = await accumulate(denops, (helper) =>
-        Promise.all([
-          helper.cmd("call add(g:denops_accumulate_test, 1)"),
-          helper.cmd("call add(g:denops_accumulate_test, 2)"),
-          helper.cmd("call add(g:denops_accumulate_test, 3)"),
-        ]));
-      assertEquals(results, [undefined, undefined, undefined]);
-      assertEquals(await denops.eval("g:denops_accumulate_test"), [1, 2, 3]);
-    });
-    await t.step("resolves 'helper.eval()' sequentially", async () => {
-      await denops.cmd("let g:denops_accumulate_test = 10");
-      const results = await accumulate(denops, (helper) =>
-        Promise.all([
-          helper.eval("g:denops_accumulate_test + 1"),
-          helper.eval("g:denops_accumulate_test - 1"),
-          helper.eval("g:denops_accumulate_test * 10"),
-        ]));
-      assertEquals(results, [11, 9, 100]);
-    });
-    await t.step("resolves 'helper.batch()' sequentially", async () => {
-      await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) =>
-        Promise.all([
-          helper.batch(
-            ["eval", "g:denops_accumulate_test + 1"],
-            ["eval", "g:denops_accumulate_test - 1"],
-          ),
-          helper.batch(
-            ["eval", "g:denops_accumulate_test * 10"],
-          ),
-        ]));
-      assertEquals(results, [[21, 19], [200]]);
-    });
-    await t.step("resolves 'helper.batch()' with empty", async () => {
-      await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) => helper.batch());
-      assertEquals(results, []);
-    });
-    await t.step("resolves 'helper.dispatch()' sequentially", async () => {
-      using denops_dispatch = stub(
-        denops,
-        "dispatch",
-        resolvesNext(["one", "two"]),
-      );
-      await denops.cmd("let g:denops_accumulate_test = 20");
-      const results = await accumulate(denops, (helper) =>
-        Promise.all([
-          helper.dispatch("someplugin", "foomethod", "bararg", 42, false),
-          helper.dispatch("otherplugin", "barmethod", true, "quxarg", 0),
-        ]));
-      assertEquals(results, ["one", "two"]);
-      assertEquals(denops_dispatch.calls.map((c) => c.args), [
-        ["someplugin", "foomethod", "bararg", 42, false],
-        ["otherplugin", "barmethod", true, "quxarg", 0],
-      ]);
-    });
+    await denops.call("execute", [
+      "let g:test_fn_call_args = []",
+      "function! TestFn(...) abort",
+      "  call add(g:test_fn_call_args, a:000->copy())",
+      "endfunction",
+    ]);
+
     await t.step("if the executor resolves", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
@@ -459,6 +395,7 @@ test({
           await helper.call("strlen", "bar");
         })();
       });
+
       await t.step("calls pending batch 'calls'", () => {
         assertEquals(denops_batch.calls.map((c) => c.args), [
           [["strlen", "foo"]],
@@ -471,6 +408,7 @@ test({
     await t.step("if the executor throws", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
+
       await t.step("rejects an error", async () => {
         await assertRejects(
           async () => {
@@ -496,206 +434,390 @@ test({
       });
     });
     await t.step("if the executor rejects", async (t) => {
+      using denops_batch = spy(denops, "batch");
+      let p: Promise<void> = Promise.resolve();
+
       await t.step("rejects an error", async () => {
         await assertRejects(
           async () => {
-            await accumulate(denops, async (helper) => {
-              await helper.call("strlen", "foo");
-              throw new Error("test error");
+            await accumulate(denops, (helper) => {
+              p = (async () => {
+                await helper.call("strlen", "foo");
+                await helper.call("strlen", "bar");
+              })();
+              return Promise.reject(new Error("test error"));
             });
           },
           Error,
           "test error",
         );
       });
-    });
-    await t.step("helper.redraw()", async (t) => {
-      await t.step("rejects an error", async () => {
-        await accumulate(denops, async (helper) => {
-          await assertRejects(
-            () => helper.redraw(),
-            Error,
-            "method is not available",
-          );
-        });
+      await t.step("calls pending batch 'calls'", () => {
+        assertEquals(denops_batch.calls.map((c) => c.args), [
+          [["strlen", "foo"]],
+        ]);
+      });
+      await t.step("rejects subsequent batch 'calls'", async () => {
+        await assertRejects(() => p, Error, "not available outside");
       });
     });
-    await t.step("helper.call()", async (t) => {
-      await t.step("rejects an error when Vim throws", async () => {
-        await accumulate(denops, async (helper) => {
-          await assertRejects(
-            () => helper.call("notexistsfn"),
-            Error,
-            "Unknown function: notexistsfn",
-          );
-        });
-      });
-    });
-    await t.step("helper.cmd()", async (t) => {
-      await t.step("rejects an error when Vim throws", async () => {
-        await accumulate(denops, async (helper) => {
-          await assertRejects(
-            () => helper.cmd("call notexistsfn()"),
-            Error,
-            "Unknown function: notexistsfn",
-          );
-        });
-      });
-    });
-    await t.step("helper.eval()", async (t) => {
-      await t.step("rejects an error when Vim throws", async () => {
-        await accumulate(denops, async (helper) => {
-          await assertRejects(
-            () => helper.eval("notexistsfn()"),
-            Error,
-            "Unknown function: notexistsfn",
-          );
-        });
-      });
-    });
-    await t.step("helper.batch()", async (t) => {
-      await t.step("rejects a BatchError when Vim throws", async () => {
-        await accumulate(denops, async (helper) => {
-          const error = await assertRejects(
-            () =>
-              helper.batch(
-                ["range", 3],
-                ["range", 2, 4],
-                ["notexistsfn"],
-                ["range", 3],
-              ),
-            BatchError,
-            "Unknown function: notexistsfn",
-          );
-          assertEquals(error.results, [[0, 1, 2], [2, 3, 4]]);
-        });
-      });
-    });
-    await t.step("helper.name", async (t) => {
-      await t.step("getter returns 'denops.name'", async () => {
-        let actual: unknown;
-        await accumulate(denops, (helper) => {
-          actual = helper.name;
-        });
-        assertStrictEquals(actual, denops.name);
-      });
-    });
-    await t.step("helper.meta", async (t) => {
-      await t.step("getter returns 'denops.meta'", async () => {
-        let actual: unknown;
-        await accumulate(denops, (helper) => {
-          actual = helper.meta;
-        });
-        assertStrictEquals(actual, denops.meta);
-      });
-    });
-    await t.step("helper.context", async (t) => {
-      await t.step("getter returns 'denops.context'", async () => {
-        let actual: unknown;
-        await accumulate(denops, (helper) => {
-          actual = helper.context;
-        });
-        assertStrictEquals(actual, denops.context);
-      });
-    });
-    await t.step("helper.dispatcher", async (t) => {
-      const MY_DISPATCHER = {
-        foo: () => {},
-      };
-
-      await t.step("setter sets to 'denops.dispatcher'", async () => {
-        await accumulate(denops, (helper) => {
-          helper.dispatcher = MY_DISPATCHER;
-        });
-        assertStrictEquals(denops.dispatcher, MY_DISPATCHER);
-      });
-      await t.step("getter returns 'denops.dispatcher'", async () => {
-        let actual: unknown;
-        await accumulate(denops, (helper) => {
-          actual = helper.dispatcher;
-        });
-        assertStrictEquals(actual, MY_DISPATCHER);
-      });
-    });
-    await t.step("if outside of the 'accumulate' block", async (t) => {
-      await t.step("helper.call()", async (t) => {
-        using denops_batch = spy(denops, "batch");
-        let helper_outside: Denops;
-        await accumulate(denops, (helper) => {
-          helper_outside = helper;
-        });
-
+    await t.step("AccumulateHelper", async (t) => {
+      await t.step(".redraw()", async (t) => {
         await t.step("rejects an error", async () => {
-          await assertRejects(
-            async () => {
-              await helper_outside.call("range", 0);
-            },
-            Error,
-            "not available outside",
-          );
+          await accumulate(denops, async (helper) => {
+            await assertRejects(
+              () => helper.redraw(),
+              Error,
+              "method is not available",
+            );
+          });
         });
-        await t.step("does not call 'denops.batch()'", () => {
+      });
+      await t.step(".call()", async (t) => {
+        await t.step("calls Vim function", async () => {
+          await denops.call("execute", [
+            "let g:test_fn_call_args = []",
+          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.call("TestFn", "foo", 1, true);
+            await Promise.all([
+              helper.call("TestFn", "a"),
+              helper.call("TestFn", "b"),
+              helper.call("TestFn", "c"),
+            ]);
+          });
+          const actual = await denops.eval("g:test_fn_call_args");
+          assertEquals(actual, [
+            ["foo", 1, true],
+            ["a"],
+            ["b"],
+            ["c"],
+          ]);
+        });
+        await t.step("resolves a result of Vim function", async () => {
+          let actual: unknown;
+          await accumulate(denops, async (helper) => {
+            actual = await helper.call("range", 2, 4);
+          });
+          assertEquals(actual, [2, 3, 4]);
+        });
+        await t.step("rejects an error when Vim throws", async () => {
+          await accumulate(denops, async (helper) => {
+            await assertRejects(
+              () => helper.call("notexistsfn"),
+              Error,
+              "Unknown function: notexistsfn",
+            );
+          });
+        });
+      });
+      await t.step(".cmd()", async (t) => {
+        await t.step("executes Vim command", async () => {
+          await denops.call("execute", [
+            "let g:test_fn_call_args = []",
+          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.cmd("call TestFn('foo', 1, v:true)");
+            await Promise.all([
+              helper.cmd("call TestFn('a')"),
+              helper.cmd("call TestFn('b')"),
+              helper.cmd("call TestFn('c')"),
+            ]);
+          });
+          const actual = await denops.eval("g:test_fn_call_args");
+          assertEquals(actual, [
+            ["foo", 1, true],
+            ["a"],
+            ["b"],
+            ["c"],
+          ]);
+        });
+        await t.step("rejects an error when Vim throws", async () => {
+          await accumulate(denops, async (helper) => {
+            await assertRejects(
+              () => helper.cmd("call notexistsfn()"),
+              Error,
+              "Unknown function: notexistsfn",
+            );
+          });
+        });
+      });
+      await t.step(".eval()", async (t) => {
+        await t.step("evaluates Vim expression", async () => {
+          await denops.call("execute", [
+            "let g:test_fn_call_args = []",
+          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.eval("TestFn('foo', 1, v:true)");
+            await Promise.all([
+              helper.eval("TestFn('a')"),
+              helper.eval("TestFn('b')"),
+              helper.eval("TestFn('c')"),
+            ]);
+          });
+          const actual = await denops.eval("g:test_fn_call_args");
+          assertEquals(actual, [
+            ["foo", 1, true],
+            ["a"],
+            ["b"],
+            ["c"],
+          ]);
+        });
+        await t.step("resolves a result of Vim expression", async () => {
+          let actual: unknown;
+          await accumulate(denops, async (helper) => {
+            actual = await helper.eval("range(2, 4)");
+          });
+          assertEquals(actual, [2, 3, 4]);
+        });
+        await t.step("rejects an error when Vim throws", async () => {
+          await accumulate(denops, async (helper) => {
+            await assertRejects(
+              () => helper.eval("notexistsfn()"),
+              Error,
+              "Unknown function: notexistsfn",
+            );
+          });
+        });
+      });
+      await t.step(".batch()", async (t) => {
+        await t.step("calls Vim functions", async () => {
+          await denops.call("execute", [
+            "let g:test_fn_call_args = []",
+          ]);
+          await accumulate(denops, async (helper) => {
+            await helper.batch(
+              ["TestFn", "foo", 1, true],
+              ["TestFn", "a"],
+              ["TestFn", "b"],
+              ["TestFn", "c"],
+            );
+          });
+          const actual = await denops.eval("g:test_fn_call_args");
+          assertEquals(actual, [
+            ["foo", 1, true],
+            ["a"],
+            ["b"],
+            ["c"],
+          ]);
+        });
+        await t.step("resolves results of Vim functions", async () => {
+          let actual: unknown;
+          await accumulate(denops, async (helper) => {
+            actual = await helper.batch(
+              ["range", 0, 2],
+              ["range", 2, 4],
+              ["matchstr", "hello", "el*"],
+            );
+          });
+          assertEquals(actual, [
+            [0, 1, 2],
+            [2, 3, 4],
+            "ell",
+          ]);
+        });
+        await t.step("resolves an empty array if no arguments", async () => {
+          using denops_batch = spy(denops, "batch");
+          let actual: unknown;
+          await accumulate(denops, async (helper) => {
+            actual = await helper.batch();
+          });
+          assertEquals(actual, []);
           assertSpyCalls(denops_batch, 0);
         });
-      });
-      await t.step("helper.cmd()", async (t) => {
-        using denops_batch = spy(denops, "batch");
-        let helper_outside: Denops;
-        await accumulate(denops, (helper) => {
-          helper_outside = helper;
-        });
-
-        await t.step("rejects an error", async () => {
-          await assertRejects(
-            async () => {
-              await helper_outside.cmd("echo 'hello'");
-            },
-            Error,
-            "not available outside",
-          );
-        });
-        await t.step("does not call 'denops.batch()'", () => {
-          assertSpyCalls(denops_batch, 0);
+        await t.step("rejects a BatchError when Vim throws", async () => {
+          await accumulate(denops, async (helper) => {
+            const error = await assertRejects(
+              () =>
+                helper.batch(
+                  ["range", 3],
+                  ["range", 2, 4],
+                  ["notexistsfn"],
+                  ["range", 3],
+                ),
+              BatchError,
+              "Unknown function: notexistsfn",
+            );
+            assertEquals(error.results, [[0, 1, 2], [2, 3, 4]]);
+          });
         });
       });
-      await t.step("helper.eval()", async (t) => {
-        using denops_batch = spy(denops, "batch");
-        let helper_outside: Denops;
-        await accumulate(denops, (helper) => {
-          helper_outside = helper;
-        });
-
-        await t.step("rejects an error", async () => {
-          await assertRejects(
-            async () => {
-              await helper_outside.eval("123");
-            },
-            Error,
-            "not available outside",
+      await t.step(".dispatch()", async (t) => {
+        await t.step("dispatches the Plugin method", async () => {
+          using denops_dispatch = stub(
+            denops,
+            "dispatch",
+            resolvesNext(["one", "two", "three"]),
           );
+          await accumulate(denops, async (helper) => {
+            await helper.dispatch("pluginA", "foo", "bar", 42, false);
+            await Promise.all([
+              helper.dispatch("pluginA", "baz", 1),
+              helper.dispatch("pluginB", "qux", 2),
+            ]);
+          });
+          assertEquals(denops_dispatch.calls.map((c) => c.args), [
+            ["pluginA", "foo", "bar", 42, false],
+            ["pluginA", "baz", 1],
+            ["pluginB", "qux", 2],
+          ]);
         });
-        await t.step("does not call 'denops.batch()'", () => {
-          assertSpyCalls(denops_batch, 0);
+        await t.step("resolves a result of the Plugin method", async () => {
+          using _denops_dispatch = stub(
+            denops,
+            "dispatch",
+            resolvesNext(["one"]),
+          );
+          let actual: unknown;
+          await accumulate(denops, async (helper) => {
+            actual = await helper.dispatch("pluginA", "foo", "bar");
+          });
+          assertEquals(actual, "one");
+        });
+        await t.step(
+          "rejects an error when the Plugin method rejects",
+          async () => {
+            using _denops_dispatch = stub(
+              denops,
+              "dispatch",
+              resolvesNext([new Error("test plugin error")]),
+            );
+            await accumulate(denops, async (helper) => {
+              await assertRejects(
+                () => helper.dispatch("pluginA", "foo", "bar"),
+                Error,
+                "test plugin error",
+              );
+            });
+          },
+        );
+      });
+      await t.step(".name", async (t) => {
+        await t.step("getter returns 'denops.name'", async () => {
+          let actual: unknown;
+          await accumulate(denops, (helper) => {
+            actual = helper.name;
+          });
+          assertStrictEquals(actual, denops.name);
         });
       });
-      await t.step("helper.batch()", async (t) => {
-        using denops_batch = spy(denops, "batch");
-        let helper_outside: Denops;
-        await accumulate(denops, (helper) => {
-          helper_outside = helper;
+      await t.step(".meta", async (t) => {
+        await t.step("getter returns 'denops.meta'", async () => {
+          let actual: unknown;
+          await accumulate(denops, (helper) => {
+            actual = helper.meta;
+          });
+          assertStrictEquals(actual, denops.meta);
         });
+      });
+      await t.step(".context", async (t) => {
+        await t.step("getter returns 'denops.context'", async () => {
+          let actual: unknown;
+          await accumulate(denops, (helper) => {
+            actual = helper.context;
+          });
+          assertStrictEquals(actual, denops.context);
+        });
+      });
+      await t.step(".dispatcher", async (t) => {
+        const MY_DISPATCHER = {
+          foo: () => {},
+        };
 
-        await t.step("rejects an error", async () => {
-          await assertRejects(
-            async () => {
-              await helper_outside.batch(["range", 0]);
-            },
-            Error,
-            "not available outside",
-          );
+        await t.step("setter sets to 'denops.dispatcher'", async () => {
+          await accumulate(denops, (helper) => {
+            helper.dispatcher = MY_DISPATCHER;
+          });
+          assertStrictEquals(denops.dispatcher, MY_DISPATCHER);
         });
-        await t.step("does not call 'denops.batch()'", () => {
-          assertSpyCalls(denops_batch, 0);
+        await t.step("getter returns 'denops.dispatcher'", async () => {
+          let actual: unknown;
+          await accumulate(denops, (helper) => {
+            actual = helper.dispatcher;
+          });
+          assertStrictEquals(actual, MY_DISPATCHER);
+        });
+      });
+      await t.step("if outside of the 'accumulate()' block", async (t) => {
+        await t.step(".call()", async (t) => {
+          using denops_batch = spy(denops, "batch");
+          let helper_outside: Denops;
+          await accumulate(denops, (helper) => {
+            helper_outside = helper;
+          });
+
+          await t.step("rejects an error", async () => {
+            await assertRejects(
+              async () => {
+                await helper_outside.call("range", 0);
+              },
+              Error,
+              "not available outside",
+            );
+          });
+          await t.step("does not call 'denops.batch()'", () => {
+            assertSpyCalls(denops_batch, 0);
+          });
+        });
+        await t.step(".cmd()", async (t) => {
+          using denops_batch = spy(denops, "batch");
+          let helper_outside: Denops;
+          await accumulate(denops, (helper) => {
+            helper_outside = helper;
+          });
+
+          await t.step("rejects an error", async () => {
+            await assertRejects(
+              async () => {
+                await helper_outside.cmd("echo 'hello'");
+              },
+              Error,
+              "not available outside",
+            );
+          });
+          await t.step("does not call 'denops.batch()'", () => {
+            assertSpyCalls(denops_batch, 0);
+          });
+        });
+        await t.step(".eval()", async (t) => {
+          using denops_batch = spy(denops, "batch");
+          let helper_outside: Denops;
+          await accumulate(denops, (helper) => {
+            helper_outside = helper;
+          });
+
+          await t.step("rejects an error", async () => {
+            await assertRejects(
+              async () => {
+                await helper_outside.eval("123");
+              },
+              Error,
+              "not available outside",
+            );
+          });
+          await t.step("does not call 'denops.batch()'", () => {
+            assertSpyCalls(denops_batch, 0);
+          });
+        });
+        await t.step(".batch()", async (t) => {
+          using denops_batch = spy(denops, "batch");
+          let helper_outside: Denops;
+          await accumulate(denops, (helper) => {
+            helper_outside = helper;
+          });
+
+          await t.step("rejects an error", async () => {
+            await assertRejects(
+              async () => {
+                await helper_outside.batch(["range", 0]);
+              },
+              Error,
+              "not available outside",
+            );
+          });
+          await t.step("does not call 'denops.batch()'", () => {
+            assertSpyCalls(denops_batch, 0);
+          });
         });
       });
     });
