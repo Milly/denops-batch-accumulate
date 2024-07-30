@@ -45,6 +45,7 @@
         "integrity": "6fda026029958ad9b6e717a989efd824c5ce8efa464252f9982898a8588abb15",
         "dependencies": [
           "jsr:@core/unknownutil@^3.18.0",
+          "jsr:@denops/core@^7.0.0",
           "jsr:@std/fs@^1.0.0",
           "jsr:@std/path@^1.0.2",
           "jsr:@std/semver@0.224.3",

@@ -2,7 +2,7 @@ import { delay } from "@std/async";
 import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
 import { assertType, type IsExact } from "@std/testing/types";
 import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
-import type { Denops } from "@denops/core";
+import { BatchError, type Denops } from "@denops/core";
 import { batch, collect } from "@denops/std/batch";
 import { test } from "@denops/test";
 
@@ -394,12 +394,13 @@ test({
     });
     await t.step("resolves 'helper.cmd()' sequentially", async () => {
       await denops.cmd("let g:denops_accumulate_test = []");
-      const results = await accumulate(denops, async (helper) => {
-        await helper.cmd("call add(g:denops_accumulate_test, 1)");
-        await helper.cmd("call add(g:denops_accumulate_test, 2)");
-        await helper.cmd("call add(g:denops_accumulate_test, 3)");
-      });
-      assertEquals(results, undefined);
+      const results = await accumulate(denops, (helper) =>
+        Promise.all([
+          helper.cmd("call add(g:denops_accumulate_test, 1)"),
+          helper.cmd("call add(g:denops_accumulate_test, 2)"),
+          helper.cmd("call add(g:denops_accumulate_test, 3)"),
+        ]));
+      assertEquals(results, [undefined, undefined, undefined]);
       assertEquals(await denops.eval("g:denops_accumulate_test"), [1, 2, 3]);
     });
     await t.step("resolves 'helper.eval()' sequentially", async () => {
@@ -508,63 +509,67 @@ test({
         );
       });
     });
-    await t.step("rejects an error when 'helper.redraw()' calls", async () => {
-      await assertRejects(
-        async () => {
-          await accumulate(denops, async (helper) => {
-            await helper.redraw();
-          });
-        },
-        Error,
-        "method is not available",
-      );
+    await t.step("helper.redraw()", async (t) => {
+      await t.step("rejects an error", async () => {
+        await accumulate(denops, async (helper) => {
+          await assertRejects(
+            () => helper.redraw(),
+            Error,
+            "method is not available",
+          );
+        });
+      });
     });
-    await t.step("rejects an error when 'helper.call()' rejects", async () => {
-      await assertRejects(
-        async () => {
-          await accumulate(denops, async (helper) => {
-            await helper.call("notexistsfn");
-          });
-        },
-        Error,
-        "Unknown function: notexistsfn",
-      );
+    await t.step("helper.call()", async (t) => {
+      await t.step("rejects an error when Vim throws", async () => {
+        await accumulate(denops, async (helper) => {
+          await assertRejects(
+            () => helper.call("notexistsfn"),
+            Error,
+            "Unknown function: notexistsfn",
+          );
+        });
+      });
     });
-    await t.step("rejects an error when 'helper.cmd()' rejects", async () => {
-      await assertRejects(
-        async () => {
-          await accumulate(denops, async (helper) => {
-            await helper.cmd("call notexistsfn()");
-          });
-        },
-        Error,
-        "Unknown function: notexistsfn",
-      );
+    await t.step("helper.cmd()", async (t) => {
+      await t.step("rejects an error when Vim throws", async () => {
+        await accumulate(denops, async (helper) => {
+          await assertRejects(
+            () => helper.cmd("call notexistsfn()"),
+            Error,
+            "Unknown function: notexistsfn",
+          );
+        });
+      });
     });
-    await t.step("rejects an error when 'helper.eval()' rejects", async () => {
-      await assertRejects(
-        async () => {
-          await accumulate(denops, async (helper) => {
-            await helper.eval("notexistsfn()");
-          });
-        },
-        Error,
-        "Unknown function: notexistsfn",
-      );
+    await t.step("helper.eval()", async (t) => {
+      await t.step("rejects an error when Vim throws", async () => {
+        await accumulate(denops, async (helper) => {
+          await assertRejects(
+            () => helper.eval("notexistsfn()"),
+            Error,
+            "Unknown function: notexistsfn",
+          );
+        });
+      });
     });
-    await t.step("rejects an error when 'helper.batch()' rejects", async () => {
-      await assertRejects(
-        async () => {
-          await accumulate(denops, async (helper) => {
-            await helper.batch(
-              ["range", 0],
-              ["notexistsfn"],
-            );
-          });
-        },
-        Error,
-        "Unknown function: notexistsfn",
-      );
+    await t.step("helper.batch()", async (t) => {
+      await t.step("rejects a BatchError when Vim throws", async () => {
+        await accumulate(denops, async (helper) => {
+          const error = await assertRejects(
+            () =>
+              helper.batch(
+                ["range", 3],
+                ["range", 2, 4],
+                ["notexistsfn"],
+                ["range", 3],
+              ),
+            BatchError,
+            "Unknown function: notexistsfn",
+          );
+          assertEquals(error.results, [[0, 1, 2], [2, 3, 4]]);
+        });
+      });
     });
     await t.step("helper.name", async (t) => {
       await t.step("getter returns 'denops.name'", async () => {
