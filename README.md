@@ -6,11 +6,8 @@
 
 denops-batch-accumulate is helper library for [Denops][].
 
-`accumulate` calls multiple denops functions together whenever possible to
-reduce RPC overhead.
-
-`accumulate` preserves the structure of the complex object returned by the
-`executor` and resolves Promise it contains.
+`accumulate` aggregates all denops functions called during the current task's
+execution and resolves them in a single RPC call.
 
 Note that functions with side effects should be avoided, and if you do, the
 order in which you call them should be carefully considered.

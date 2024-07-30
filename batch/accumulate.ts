@@ -155,10 +155,8 @@ function isErrorResult(obj: unknown): obj is ErrorResult {
 }
 
 /**
- * Call multiple denops functions together whenever possible to reduce RPC overhead.
- *
- * `accumulate` preserves the structure of the complex object returned by the
- * `executor` and resolves Promise it contains.
+ * Aggregates all denops functions called during the current task's execution
+ * and resolves them in a single RPC call.
  *
  * ```typescript
  * import { assertType, IsExact } from "jsr:@std/testing/types";
