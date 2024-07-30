@@ -1,32 +1,34 @@
 import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
+import { BatchError } from "@denops/core";
 
 type Call = [string, ...unknown[]];
 
-declare const WillStop: unique symbol;
-const WILL_STOP = {} as typeof WillStop;
+const errorProp = Symbol("AccumulateErrorResult");
+
+type ErrorResult = {
+  [errorProp]: Error;
+};
 
 class AccumulateHelper implements Denops {
-  #denops: Denops;
-  #calls: Call[] = [];
-  #results: unknown[] = [];
+  readonly #denops: Denops;
+  readonly #calls: Call[] = [];
+  readonly #results: unknown[] = [];
   #closed = false;
-  #resolved = Promise.withResolvers<void>();
-  #called = Promise.withResolvers<void>();
+  readonly #closedWaiter = Promise.withResolvers<void>();
+  #resolvedWaiter = Promise.withResolvers<void>();
+  #calledWaiter = Promise.withResolvers<void>();
 
   constructor(denops: Denops) {
     this.#denops = denops;
   }
 
-  static getCallsResolver(helper: AccumulateHelper) {
-    const willStop = Promise.withResolvers<typeof WILL_STOP>();
-    return {
-      promise: helper.#resolveCalls(willStop.promise),
-      stop: () => willStop.resolve(WILL_STOP),
-    };
+  static startCallsResolver(helper: AccumulateHelper): Promise<void> {
+    return helper.#resolveCalls();
   }
 
   static close(helper: AccumulateHelper): void {
     helper.#closed = true;
+    helper.#closedWaiter.resolve();
   }
 
   get name(): string {
@@ -50,8 +52,10 @@ class AccumulateHelper implements Denops {
   }
 
   redraw(_force?: boolean): Promise<void> {
-    throw new Error(
-      "The 'redraw' method is not available on AccumulateHelper.",
+    return Promise.reject(
+      new Error(
+        "The 'redraw' method is not available on AccumulateHelper.",
+      ),
     );
   }
 
@@ -60,8 +64,12 @@ class AccumulateHelper implements Denops {
     const callIndex = this.#calls.length;
     this.#calls.push([fn, ...args]);
     this.#onCalled();
-    await this.#resolved.promise;
-    return this.#results[callIndex];
+    await this.#resolvedWaiter.promise;
+    const result = this.#results[callIndex];
+    if (isErrorResult(result)) {
+      throw new Error(result[errorProp].message);
+    }
+    return result;
   }
 
   async batch(...calls: Call[]): Promise<unknown[]> {
@@ -72,14 +80,18 @@ class AccumulateHelper implements Denops {
     const callIndex = this.#calls.length;
     this.#calls.push(...calls);
     this.#onCalled();
-    await this.#resolved.promise;
-    return this.#results.slice(callIndex, callIndex + calls.length);
+    await this.#resolvedWaiter.promise;
+    const results = this.#results.slice(callIndex, callIndex + calls.length);
+    const errorIndex = results.findIndex(isErrorResult);
+    if (errorIndex >= 0) {
+      const error = (results[errorIndex] as ErrorResult)[errorProp];
+      throw new BatchError(error.message, results.slice(0, errorIndex));
+    }
+    return results;
   }
 
-  cmd(cmd: string, ctx: Context = {}): Promise<void> {
-    this.#ensureAvailable();
-    this.call("denops#api#cmd", cmd, ctx);
-    return Promise.resolve();
+  async cmd(cmd: string, ctx: Context = {}): Promise<void> {
+    await this.call("denops#api#cmd", cmd, ctx);
   }
 
   eval(expr: string, ctx: Context = {}): Promise<unknown> {
@@ -102,41 +114,49 @@ class AccumulateHelper implements Denops {
     const callCount = this.#calls.length;
     queueMicrotask(() => {
       if (callCount === this.#calls.length) {
-        this.#called.resolve();
+        this.#calledWaiter.resolve();
       }
     });
   }
 
-  #dequeueCalls(): Call[] {
-    return this.#calls.slice(this.#results.length);
-  }
-
-  #addResults(results: unknown[]): void {
-    this.#results.push(...results);
-    if (this.#results.length === this.#calls.length) {
-      const lastResolved = this.#resolved;
-      this.#resolved = Promise.withResolvers();
-      this.#called = Promise.withResolvers();
-      lastResolved.resolve();
-    }
-  }
-
-  async #resolveCalls(willStop: Promise<typeof WILL_STOP>): Promise<void> {
+  async #resolveCalls(): Promise<void> {
     for (;;) {
-      const state = await Promise.race([willStop, this.#called.promise]);
-      if (state === WILL_STOP) break;
-      const calls = this.#dequeueCalls();
-      const results = await this.#denops.batch(...calls);
-      this.#addResults(results);
+      await Promise.race([
+        this.#closedWaiter.promise,
+        this.#calledWaiter.promise,
+      ]);
+      const calls = this.#calls.slice(this.#results.length);
+      if (calls.length === 0) break;
+      const lastResolved = this.#resolvedWaiter;
+      this.#resolvedWaiter = Promise.withResolvers();
+      this.#calledWaiter = Promise.withResolvers();
+      let results: unknown[];
+      try {
+        results = await this.#denops.batch(...calls);
+      } catch (error) {
+        const errorResult: ErrorResult = { [errorProp]: error };
+        results = isBatchError(error) ? [...error.results] : [];
+        while (results.length < calls.length) {
+          results.push(errorResult);
+        }
+      }
+      this.#results.push(...results);
+      lastResolved.resolve();
     }
   }
 }
 
+function isBatchError(obj: unknown): obj is BatchError {
+  return obj instanceof Error && obj.name === "BatchError";
+}
+
+function isErrorResult(obj: unknown): obj is ErrorResult {
+  return obj != null && Object.hasOwn(obj, errorProp);
+}
+
 /**
- * Call multiple denops functions together whenever possible to reduce RPC overhead.
- *
- * `accumulate` preserves the structure of the complex object returned by the
- * `executor` and resolves Promise it contains.
+ * Aggregates all denops functions called during the current task's execution
+ * and resolves them in a single RPC call.
  *
  * ```typescript
  * import { assertType, IsExact } from "jsr:@std/testing/types";
@@ -185,18 +205,14 @@ export async function accumulate<T extends unknown>(
   executor: (helper: Denops) => T,
 ): Promise<Awaited<T>> {
   const helper = new AccumulateHelper(denops);
-  try {
-    const resolver = AccumulateHelper.getCallsResolver(helper);
-    const run = async () => {
-      try {
-        return await executor(helper);
-      } finally {
-        resolver.stop();
-      }
-    };
-    const [result] = await Promise.all([run(), resolver.promise]);
-    return result;
-  } finally {
-    AccumulateHelper.close(helper);
-  }
+  const resolver = AccumulateHelper.startCallsResolver(helper);
+  const run = async () => {
+    try {
+      return await executor(helper);
+    } finally {
+      AccumulateHelper.close(helper);
+    }
+  };
+  const [result] = await Promise.all([run(), resolver]);
+  return result;
 }
