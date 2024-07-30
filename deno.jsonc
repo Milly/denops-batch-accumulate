@@ -4,6 +4,9 @@
   "exports": {
     ".": "./batch/accumulate.ts"
   },
+  "exclude": [
+    ".coverage/"
+  ],
   "publish": {
     "include": [
       "LICENSE",
