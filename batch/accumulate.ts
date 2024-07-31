@@ -1,9 +1,12 @@
 import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 import { BatchError } from "@denops/core";
 
-type Call = [string, ...unknown[]];
+const MICROTASK_DELAY = 5;
 
+const resolvedPromise = Promise.resolve();
 const errorProp = Symbol("AccumulateErrorResult");
+
+type Call = [string, ...unknown[]];
 
 type ErrorResult = {
   [errorProp]: Error;
@@ -14,21 +17,17 @@ class AccumulateHelper implements Denops {
   readonly #calls: Call[] = [];
   readonly #results: unknown[] = [];
   #closed = false;
-  readonly #closedWaiter = Promise.withResolvers<void>();
   #resolvedWaiter = Promise.withResolvers<void>();
-  #calledWaiter = Promise.withResolvers<void>();
 
   constructor(denops: Denops) {
     this.#denops = denops;
   }
 
-  static startCallsResolver(helper: AccumulateHelper): Promise<void> {
-    return helper.#resolveCalls();
-  }
-
-  static close(helper: AccumulateHelper): void {
+  static async close(helper: AccumulateHelper): Promise<void> {
     helper.#closed = true;
-    helper.#closedWaiter.resolve();
+    if (helper.#calls.length > helper.#results.length) {
+      await helper.#resolvedWaiter.promise;
+    }
   }
 
   get name(): string {
@@ -63,8 +62,7 @@ class AccumulateHelper implements Denops {
     this.#ensureAvailable();
     const callIndex = this.#calls.length;
     this.#calls.push([fn, ...args]);
-    this.#onCalled();
-    await this.#resolvedWaiter.promise;
+    await this.#waitResolved();
     const result = this.#results[callIndex];
     if (isErrorResult(result)) {
       throw new Error(result[errorProp].message);
@@ -74,13 +72,9 @@ class AccumulateHelper implements Denops {
 
   async batch(...calls: Call[]): Promise<unknown[]> {
     this.#ensureAvailable();
-    if (calls.length === 0) {
-      return [];
-    }
     const callIndex = this.#calls.length;
     this.#calls.push(...calls);
-    this.#onCalled();
-    await this.#resolvedWaiter.promise;
+    await this.#waitResolved();
     const results = this.#results.slice(callIndex, callIndex + calls.length);
     const errorIndex = results.findIndex(isErrorResult);
     if (errorIndex >= 0) {
@@ -94,8 +88,8 @@ class AccumulateHelper implements Denops {
     await this.call("denops#api#cmd", cmd, ctx);
   }
 
-  eval(expr: string, ctx: Context = {}): Promise<unknown> {
-    return this.call("denops#api#eval", expr, ctx);
+  async eval(expr: string, ctx: Context = {}): Promise<unknown> {
+    return await this.call("denops#api#eval", expr, ctx);
   }
 
   dispatch(name: string, fn: string, ...args: unknown[]): Promise<unknown> {
@@ -110,38 +104,44 @@ class AccumulateHelper implements Denops {
     }
   }
 
-  #onCalled(): void {
+  #waitResolved(): Promise<void> {
     const callCount = this.#calls.length;
-    queueMicrotask(() => {
-      if (callCount === this.#calls.length) {
-        this.#calledWaiter.resolve();
-      }
-    });
+    if (callCount === this.#results.length) {
+      return resolvedPromise;
+    }
+    (async () => {
+      let delay = MICROTASK_DELAY;
+      do {
+        await resolvedPromise;
+        if (callCount !== this.#calls.length) return;
+        --delay;
+      } while (delay > 0);
+      await this.#resolvePendingCalls();
+    })();
+    return this.#resolvedWaiter.promise;
   }
 
-  async #resolveCalls(): Promise<void> {
-    for (;;) {
-      await Promise.race([
-        this.#closedWaiter.promise,
-        this.#calledWaiter.promise,
-      ]);
-      const calls = this.#calls.slice(this.#results.length);
-      if (calls.length === 0) break;
-      const lastResolved = this.#resolvedWaiter;
-      this.#resolvedWaiter = Promise.withResolvers();
-      this.#calledWaiter = Promise.withResolvers();
-      let results: unknown[];
-      try {
-        results = await this.#denops.batch(...calls);
-      } catch (error) {
-        const errorResult: ErrorResult = { [errorProp]: error };
-        results = isBatchError(error) ? [...error.results] : [];
-        while (results.length < calls.length) {
-          results.push(errorResult);
-        }
+  async #resolvePendingCalls(): Promise<void> {
+    const resultIndex = this.#results.length;
+    const calls = this.#calls.slice(resultIndex);
+    this.#results.length = this.#calls.length;
+    const resolvedWaiter = this.#resolvedWaiter;
+    this.#resolvedWaiter = Promise.withResolvers();
+    const results = await this.#resolveCalls(calls);
+    this.#results.splice(resultIndex, results.length, ...results);
+    resolvedWaiter.resolve();
+  }
+
+  async #resolveCalls(calls: Call[]): Promise<unknown[]> {
+    try {
+      return await this.#denops.batch(...calls);
+    } catch (error) {
+      const errorResult: ErrorResult = { [errorProp]: error };
+      const results = isBatchError(error) ? [...error.results] : [];
+      while (results.length < calls.length) {
+        results.push(errorResult);
       }
-      this.#results.push(...results);
-      lastResolved.resolve();
+      return results;
     }
   }
 }
@@ -205,14 +205,9 @@ export async function accumulate<T extends unknown>(
   executor: (helper: Denops) => T,
 ): Promise<Awaited<T>> {
   const helper = new AccumulateHelper(denops);
-  const resolver = AccumulateHelper.startCallsResolver(helper);
-  const run = async () => {
-    try {
-      return await executor(helper);
-    } finally {
-      AccumulateHelper.close(helper);
-    }
-  };
-  const [result] = await Promise.all([run(), resolver]);
-  return result;
+  try {
+    return await executor(helper);
+  } finally {
+    await AccumulateHelper.close(helper);
+  }
 }
