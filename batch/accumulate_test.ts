@@ -520,8 +520,8 @@ test({
             await helper.cmd("call TestFn('foo', 1, v:true)");
             await Promise.all([
               helper.cmd("call TestFn('a')"),
-              helper.cmd("call TestFn('b')"),
-              helper.cmd("call TestFn('c')"),
+              helper.cmd("call TestFn(value)", { value: "b" }),
+              helper.cmd("call TestFn(value)", { value: "c" }),
             ]);
           });
           const actual = await denops.eval("g:test_fn_call_args");
@@ -551,8 +551,8 @@ test({
             await helper.eval("TestFn('foo', 1, v:true)");
             await Promise.all([
               helper.eval("TestFn('a')"),
-              helper.eval("TestFn('b')"),
-              helper.eval("TestFn('c')"),
+              helper.eval("TestFn(value)", { value: "b" }),
+              helper.eval("TestFn(value)", { value: "c" }),
             ]);
           });
           const actual = await denops.eval("g:test_fn_call_args");
