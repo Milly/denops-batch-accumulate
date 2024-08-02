@@ -17,6 +17,7 @@
       "jsr:@lambdalisue/messagepack@^1.0.1": "jsr:@lambdalisue/messagepack@1.0.1",
       "jsr:@lambdalisue/reservator@^1.0.1": "jsr:@lambdalisue/reservator@1.0.1",
       "jsr:@lambdalisue/streamtools@^1.0.0": "jsr:@lambdalisue/streamtools@1.0.0",
+      "jsr:@nick/dispose@^1.1.0": "jsr:@nick/dispose@1.1.0",
       "jsr:@std/assert@^1.0.0": "jsr:@std/assert@1.0.1",
       "jsr:@std/assert@^1.0.1": "jsr:@std/assert@1.0.1",
       "jsr:@std/async@1.0.0": "jsr:@std/async@1.0.0",
@@ -99,6 +100,9 @@
         "dependencies": [
           "jsr:@std/bytes@^0.221.0"
         ]
+      },
+      "@nick/dispose@1.1.0": {
+        "integrity": "73a15b90cb48e1435801258ba3ac7a19382823349dedcacbb8e5b5b673ce9d17"
       },
       "@std/assert@1.0.1": {
         "integrity": "13590ef8e5854f59e4ad252fd987e83239a1bf1f16cb9c69c1d123ebb807a75b",
@@ -213,6 +217,7 @@
       "jsr:@denops/core@^7.0.0",
       "jsr:@denops/std@^7.0.0",
       "jsr:@denops/test@^3.0.1",
+      "jsr:@nick/dispose@^1.1.0",
       "jsr:@std/assert@^1.0.0",
       "jsr:@std/async@^1.0.1",
       "jsr:@std/testing@1.0.0-rc.5"

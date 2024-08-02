@@ -38,6 +38,10 @@ class AccumulateHelper implements Denops {
     return this.#denops.meta;
   }
 
+  get interrupted(): AbortSignal | undefined {
+    return this.#denops.interrupted;
+  }
+
   get context(): Record<string | number | symbol, unknown> {
     return this.#denops.context;
   }
