@@ -711,6 +711,15 @@ test({
           assertStrictEquals(actual, denops.meta);
         });
       });
+      await t.step(".interrupted", async (t) => {
+        await t.step("getter returns 'denops.interrupted'", async () => {
+          let actual: unknown;
+          await accumulate(denops, (helper) => {
+            actual = helper.interrupted;
+          });
+          assertStrictEquals(actual, denops.interrupted);
+        });
+      });
       await t.step(".context", async (t) => {
         await t.step("getter returns 'denops.context'", async () => {
           let actual: unknown;
