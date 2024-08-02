@@ -2,6 +2,7 @@ import { delay } from "@std/async";
 import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
 import { assertType, type IsExact } from "@std/testing/types";
 import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
+import { DisposableStack } from "@nick/dispose";
 import { BatchError, type Denops } from "@denops/core";
 import { batch, collect } from "@denops/std/batch";
 import { DenopsStub, test } from "@denops/test";
@@ -725,12 +726,21 @@ test({
         };
 
         await t.step("setter sets to 'denops.dispatcher'", async () => {
+          using stack = new DisposableStack();
+          stack.adopt(denops.dispatcher, (saved) => {
+            denops.dispatcher = saved;
+          });
           await accumulate(denops, (helper) => {
             helper.dispatcher = MY_DISPATCHER;
           });
           assertStrictEquals(denops.dispatcher, MY_DISPATCHER);
         });
         await t.step("getter returns 'denops.dispatcher'", async () => {
+          using stack = new DisposableStack();
+          stack.adopt(denops.dispatcher, (saved) => {
+            denops.dispatcher = saved;
+          });
+          denops.dispatcher = MY_DISPATCHER;
           let actual: unknown;
           await accumulate(denops, (helper) => {
             actual = helper.dispatcher;
