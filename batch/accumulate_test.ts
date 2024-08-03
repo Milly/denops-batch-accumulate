@@ -412,15 +412,14 @@ test({
 
       await t.step("rejects an error", async () => {
         await assertRejects(
-          async () => {
-            await accumulate(denops, (helper) => {
+          () =>
+            accumulate(denops, (helper) => {
               p = (async () => {
                 await helper.call("strlen", "foo");
                 await helper.call("strlen", "bar");
               })();
               throw new Error("test error");
-            });
-          },
+            }),
           Error,
           "test error",
         );
@@ -440,15 +439,14 @@ test({
 
       await t.step("rejects an error", async () => {
         await assertRejects(
-          async () => {
-            await accumulate(denops, (helper) => {
+          () =>
+            accumulate(denops, (helper) => {
               p = (async () => {
                 await helper.call("strlen", "foo");
                 await helper.call("strlen", "bar");
               })();
               return Promise.reject(new Error("test error"));
-            });
-          },
+            }),
           Error,
           "test error",
         );
@@ -767,9 +765,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.call("range", 0);
-              },
+              () => helper_outside.call("range", 0),
               Error,
               "not available outside",
             );
@@ -787,9 +783,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.cmd("echo 'hello'");
-              },
+              () => helper_outside.cmd("echo 'hello'"),
               Error,
               "not available outside",
             );
@@ -807,9 +801,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.eval("123");
-              },
+              () => helper_outside.eval("123"),
               Error,
               "not available outside",
             );
@@ -827,9 +819,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.batch(["range", 0]);
-              },
+              () => helper_outside.batch(["range", 0]),
               Error,
               "not available outside",
             );
