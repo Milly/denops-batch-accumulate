@@ -412,15 +412,14 @@ test({
 
       await t.step("rejects an error", async () => {
         await assertRejects(
-          async () => {
-            await accumulate(denops, (helper) => {
+          () =>
+            accumulate(denops, (helper) => {
               p = (async () => {
                 await helper.call("strlen", "foo");
                 await helper.call("strlen", "bar");
               })();
               throw new Error("test error");
-            });
-          },
+            }),
           Error,
           "test error",
         );
@@ -440,15 +439,14 @@ test({
 
       await t.step("rejects an error", async () => {
         await assertRejects(
-          async () => {
-            await accumulate(denops, (helper) => {
+          () =>
+            accumulate(denops, (helper) => {
               p = (async () => {
                 await helper.call("strlen", "foo");
                 await helper.call("strlen", "bar");
               })();
               return Promise.reject(new Error("test error"));
-            });
-          },
+            }),
           Error,
           "test error",
         );
@@ -502,7 +500,7 @@ test({
           });
           assertEquals(actual, [2, 3, 4]);
         });
-        await t.step("rejects an error when Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async () => {
           await accumulate(denops, async (helper) => {
             await assertRejects(
               () => helper.call("notexistsfn"),
@@ -533,7 +531,7 @@ test({
             ["c"],
           ]);
         });
-        await t.step("rejects an error when Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async () => {
           await accumulate(denops, async (helper) => {
             await assertRejects(
               () => helper.cmd("call notexistsfn()"),
@@ -571,7 +569,7 @@ test({
           });
           assertEquals(actual, [2, 3, 4]);
         });
-        await t.step("rejects an error when Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async () => {
           await accumulate(denops, async (helper) => {
             await assertRejects(
               () => helper.eval("notexistsfn()"),
@@ -626,7 +624,7 @@ test({
           assertEquals(actual, []);
           assertSpyCalls(denops_batch, 0);
         });
-        await t.step("rejects a BatchError when Vim throws", async () => {
+        await t.step("rejects a BatchError which Vim throws", async () => {
           await accumulate(denops, async (helper) => {
             const error = await assertRejects(
               () =>
@@ -644,7 +642,7 @@ test({
         });
       });
       await t.step(".dispatch()", async (t) => {
-        await t.step("dispatches the Plugin method", async () => {
+        await t.step("calls 'denops.dispatch()'", async () => {
           using denops_dispatch = stub(
             denops,
             "dispatch",
@@ -663,7 +661,7 @@ test({
             ["pluginB", "qux", 2],
           ]);
         });
-        await t.step("resolves a result of the Plugin method", async () => {
+        await t.step("resolves a result of 'denops.dispatch()'", async () => {
           using _denops_dispatch = stub(
             denops,
             "dispatch",
@@ -676,7 +674,7 @@ test({
           assertEquals(actual, "one");
         });
         await t.step(
-          "rejects an error when the Plugin method rejects",
+          "rejects an error which the 'denops.dispatch()' rejects",
           async () => {
             using _denops_dispatch = stub(
               denops,
@@ -767,9 +765,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.call("range", 0);
-              },
+              () => helper_outside.call("range", 0),
               Error,
               "not available outside",
             );
@@ -787,9 +783,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.cmd("echo 'hello'");
-              },
+              () => helper_outside.cmd("echo 'hello'"),
               Error,
               "not available outside",
             );
@@ -807,9 +801,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.eval("123");
-              },
+              () => helper_outside.eval("123"),
               Error,
               "not available outside",
             );
@@ -827,9 +819,7 @@ test({
 
           await t.step("rejects an error", async () => {
             await assertRejects(
-              async () => {
-                await helper_outside.batch(["range", 0]);
-              },
+              () => helper_outside.batch(["range", 0]),
               Error,
               "not available outside",
             );
