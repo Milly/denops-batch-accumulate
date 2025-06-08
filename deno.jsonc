@@ -24,9 +24,10 @@
   },
   "tasks": {
     "check": "deno lint && deno fmt --check && deno check --no-lock **/*.ts",
+    "check:doc": "deno test --doc --no-run --no-lock",
     "check:publish": "deno publish --dry-run",
-    "bench": "deno bench -A",
-    "test": "LANG=C deno test -A --doc --parallel --shuffle",
+    "bench": "deno bench -A --no-lock",
+    "test": "LANG=C deno test -A --doc --parallel --shuffle --no-lock",
     "test:coverage": "LANG=C deno task test --coverage=.coverage",
     "coverage": "deno coverage .coverage",
     "coverage:clean": "rm -rf .coverage"
