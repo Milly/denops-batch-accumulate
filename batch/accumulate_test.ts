@@ -387,6 +387,15 @@ test({
       "endfunction",
     ]);
 
+    await t.step("when the executor is not callable", async (t) => {
+      await t.step("rejects an error", async () => {
+        await assertRejects(
+          // deno-lint-ignore no-explicit-any
+          () => accumulate(denops, null as any),
+          TypeError,
+        );
+      });
+    });
     await t.step("when the executor resolves", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
