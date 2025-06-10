@@ -1,5 +1,10 @@
 import { delay } from "@std/async";
-import { assertEquals, assertRejects, assertStrictEquals } from "@std/assert";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+  assertStringIncludes,
+} from "@std/assert";
 import { assertType, type IsExact } from "@std/testing/types";
 import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
 import { DisposableStack } from "@nick/dispose";
@@ -471,12 +476,19 @@ test({
     });
     await t.step("AccumulateHelper", async (t) => {
       await t.step(".redraw()", async (t) => {
-        await t.step("rejects an error", async () => {
+        await t.step("rejects an error", async (t) => {
+          let error: Error;
           await accumulate(denops, async (helper) => {
-            await assertRejects(
+            error = await assertRejects(
               () => helper.redraw(),
               Error,
               "method is not available",
+            );
+          });
+          await t.step("with the stack trace contains the call site", () => {
+            assertStringIncludes(
+              error.stack ?? "<stack is undefined>",
+              "AccumulateHelper.redraw",
             );
           });
         });
@@ -509,12 +521,19 @@ test({
           });
           assertEquals(actual, [2, 3, 4]);
         });
-        await t.step("rejects an error which Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async (t) => {
+          let error: Error;
           await accumulate(denops, async (helper) => {
-            await assertRejects(
+            error = await assertRejects(
               () => helper.call("notexistsfn"),
               Error,
               "Unknown function: notexistsfn",
+            );
+          });
+          await t.step("and the stack trace contains the call site", () => {
+            assertStringIncludes(
+              error.stack ?? "<stack is undefined>",
+              "AccumulateHelper.call",
             );
           });
         });
@@ -540,12 +559,19 @@ test({
             ["c"],
           ]);
         });
-        await t.step("rejects an error which Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async (t) => {
+          let error: Error;
           await accumulate(denops, async (helper) => {
-            await assertRejects(
+            error = await assertRejects(
               () => helper.cmd("call notexistsfn()"),
               Error,
               "Unknown function: notexistsfn",
+            );
+          });
+          await t.step("and the stack trace contains the call site", () => {
+            assertStringIncludes(
+              error.stack ?? "<stack is undefined>",
+              "AccumulateHelper.cmd",
             );
           });
         });
@@ -578,12 +604,19 @@ test({
           });
           assertEquals(actual, [2, 3, 4]);
         });
-        await t.step("rejects an error which Vim throws", async () => {
+        await t.step("rejects an error which Vim throws", async (t) => {
+          let error: Error;
           await accumulate(denops, async (helper) => {
-            await assertRejects(
+            error = await assertRejects(
               () => helper.eval("notexistsfn()"),
               Error,
               "Unknown function: notexistsfn",
+            );
+          });
+          await t.step("and the stack trace contains the call site", () => {
+            assertStringIncludes(
+              error.stack ?? "<stack is undefined>",
+              "AccumulateHelper.eval",
             );
           });
         });
@@ -633,9 +666,10 @@ test({
           assertEquals(actual, []);
           assertSpyCalls(denops_batch, 0);
         });
-        await t.step("rejects a BatchError which Vim throws", async () => {
+        await t.step("rejects a BatchError which Vim throws", async (t) => {
+          let error: BatchError;
           await accumulate(denops, async (helper) => {
-            const error = await assertRejects(
+            error = await assertRejects(
               () =>
                 helper.batch(
                   ["range", 3],
@@ -647,6 +681,12 @@ test({
               "Unknown function: notexistsfn",
             );
             assertEquals(error.results, [[0, 1, 2], [2, 3, 4]]);
+          });
+          await t.step("and the stack trace contains the call site", () => {
+            assertStringIncludes(
+              error.stack ?? "<stack is undefined>",
+              "AccumulateHelper.batch",
+            );
           });
         });
       });
@@ -684,17 +724,26 @@ test({
         });
         await t.step(
           "rejects an error which the 'denops.dispatch()' rejects",
-          async () => {
+          async (t) => {
             using _denops_dispatch = stub(
               denops,
               "dispatch",
-              resolvesNext([new Error("test plugin error")]),
+              () => {
+                throw new Error("test plugin error");
+              },
             );
+            let error: Error;
             await accumulate(denops, async (helper) => {
-              await assertRejects(
+              error = await assertRejects(
                 () => helper.dispatch("pluginA", "foo", "bar"),
                 Error,
                 "test plugin error",
+              );
+            });
+            await t.step("and the stack trace contains the call site", () => {
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.dispatch",
               );
             });
           },

@@ -96,8 +96,12 @@ class AccumulateHelper implements Denops {
     return await this.call("denops#api#eval", expr, ctx);
   }
 
-  dispatch(name: string, fn: string, ...args: unknown[]): Promise<unknown> {
-    return this.#denops.dispatch(name, fn, ...args);
+  async dispatch(
+    name: string,
+    fn: string,
+    ...args: unknown[]
+  ): Promise<unknown> {
+    return await this.#denops.dispatch(name, fn, ...args);
   }
 
   #ensureAvailable(): void {
