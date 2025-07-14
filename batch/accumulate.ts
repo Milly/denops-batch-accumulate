@@ -140,7 +140,7 @@ class AccumulateHelper implements Denops {
     try {
       return await this.#denops.batch(...calls);
     } catch (error) {
-      const errorResult: ErrorResult = { [errorProp]: error };
+      const errorResult: ErrorResult = { [errorProp]: error as Error };
       const results = isBatchError(error) ? [...error.results] : [];
       while (results.length < calls.length) {
         results.push(errorResult);

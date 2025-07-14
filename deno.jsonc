@@ -1,6 +1,5 @@
 {
   "name": "@milly/denops-batch-accumulate",
-  "version": "0.0.0",
   "exports": {
     ".": "./batch/accumulate.ts"
   },
@@ -24,10 +23,11 @@
   },
   "tasks": {
     "check": "deno lint && deno fmt --check && deno check --no-lock **/*.ts",
-    "check:publish": "deno publish --dry-run",
-    "bench": "deno bench -A",
-    "test": "deno test -A --doc --parallel --shuffle",
-    "test:coverage": "deno task test --coverage=.coverage",
+    "check:doc": "deno test --doc --no-run --no-lock",
+    "check:publish": "deno publish --dry-run --set-version=0.0.0",
+    "bench": "deno bench -A --no-lock",
+    "test": "LANG=C deno test -A --doc --parallel --shuffle --no-lock",
+    "test:coverage": "LANG=C deno task test --coverage=.coverage",
     "coverage": "deno coverage .coverage",
     "coverage:clean": "rm -rf .coverage"
   },
