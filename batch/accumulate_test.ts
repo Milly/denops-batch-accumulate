@@ -417,7 +417,7 @@ test({
         ]);
       });
       await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, Error, "not available outside");
+        await assertRejects(() => p, TypeError, "not available outside");
       });
     });
     await t.step("when the executor throws", async (t) => {
@@ -444,7 +444,7 @@ test({
         ]);
       });
       await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, Error, "not available outside");
+        await assertRejects(() => p, TypeError, "not available outside");
       });
     });
     await t.step("when the executor rejects", async (t) => {
@@ -471,7 +471,7 @@ test({
         ]);
       });
       await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, Error, "not available outside");
+        await assertRejects(() => p, TypeError, "not available outside");
       });
     });
     await t.step("AccumulateHelper", async (t) => {
@@ -824,7 +824,7 @@ test({
           await t.step("rejects an error", async () => {
             await assertRejects(
               () => helper_outside.call("range", 0),
-              Error,
+              TypeError,
               "not available outside",
             );
           });
@@ -842,7 +842,7 @@ test({
           await t.step("rejects an error", async () => {
             await assertRejects(
               () => helper_outside.cmd("echo 'hello'"),
-              Error,
+              TypeError,
               "not available outside",
             );
           });
@@ -860,7 +860,7 @@ test({
           await t.step("rejects an error", async () => {
             await assertRejects(
               () => helper_outside.eval("123"),
-              Error,
+              TypeError,
               "not available outside",
             );
           });
@@ -878,7 +878,7 @@ test({
           await t.step("rejects an error", async () => {
             await assertRejects(
               () => helper_outside.batch(["range", 0]),
-              Error,
+              TypeError,
               "not available outside",
             );
           });
