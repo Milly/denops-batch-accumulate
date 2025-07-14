@@ -106,7 +106,7 @@ class AccumulateHelper implements Denops {
 
   #ensureAvailable(): void {
     if (this.#closed) {
-      throw new Error(
+      throw new TypeError(
         "AccumulateHelper instance is not available outside of 'accumulate' block",
       );
     }
