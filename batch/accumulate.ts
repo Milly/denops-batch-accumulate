@@ -1,13 +1,17 @@
 import { nextTick } from "node:process";
 import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 import { BatchError } from "@denops/core";
+import { AccumulateCancelledError } from "./error.ts";
 
 const errorProp = Symbol("AccumulateErrorResult");
 
 type Call = [string, ...unknown[]];
 
 type ErrorResult = {
-  [errorProp]: Error;
+  [errorProp]:
+    | { type: "error"; message: string; cause: unknown }
+    | { type: "cancel"; cause: unknown }
+    | { type: "unknown"; message: string; cause: unknown };
 };
 
 class AccumulateHelper implements Denops {
@@ -62,21 +66,48 @@ class AccumulateHelper implements Denops {
 
   async call(fn: string, ...args: unknown[]): Promise<unknown> {
     this.#ensureAvailable();
-    const [result] = await this.#waitResolved([[fn, ...args]]);
+    const call: Call = [fn, ...args];
+    const [result] = await this.#waitResolved([call]);
+
     if (isErrorResult(result)) {
-      throw new Error(result[errorProp].message);
+      const error = result[errorProp];
+      if (error.type === "error") {
+        throw new Error(error.message, { cause: error.cause });
+      } else if (error.type === "cancel") {
+        const repr = `['${fn}', ...]`;
+        throw new AccumulateCancelledError(
+          `Call was cancelled due to another error in parallel execution: ${repr}`,
+          { calls: [call], cause: error.cause },
+        );
+      } else {
+        throw new Error(error.message, { cause: error.cause });
+      }
     }
+
     return result;
   }
 
   async batch(...calls: Call[]): Promise<unknown[]> {
     this.#ensureAvailable();
     const results = await this.#waitResolved(calls);
+
     const errorIndex = results.findIndex(isErrorResult);
     if (errorIndex >= 0) {
-      const error = (results[errorIndex] as ErrorResult)[errorProp];
-      throw new BatchError(error.message, results.slice(0, errorIndex));
+      const { [errorProp]: error } = results[errorIndex] as ErrorResult;
+      if (error.type === "error") {
+        throw new BatchError(error.message, results.slice(0, errorIndex));
+      } else if (error.type === "cancel") {
+        const [[fn]] = calls;
+        const repr = `[['${fn}', ...], ... total ${calls.length} calls]`;
+        throw new AccumulateCancelledError(
+          `Batch calls were cancelled due to another error in parallel execution: ${repr}`,
+          { calls, cause: error.cause },
+        );
+      } else {
+        throw new Error(error.message, { cause: error.cause });
+      }
     }
+
     return results;
   }
 
@@ -134,13 +165,24 @@ class AccumulateHelper implements Denops {
   async #resolveCalls(calls: Call[]): Promise<unknown[]> {
     try {
       return await this.#denops.batch(...calls);
-    } catch (error) {
-      const errorResult: ErrorResult = { [errorProp]: error as Error };
-      const results = isBatchError(error) ? [...error.results] : [];
-      while (results.length < calls.length) {
-        results.push(errorResult);
+    } catch (error: unknown) {
+      if (isBatchError(error)) {
+        const { results, message } = error;
+        const errorResult = {
+          [errorProp]: { type: "error", message, cause: error },
+        };
+        const cancelledResults = calls.slice(results.length + 1)
+          .map(() => ({
+            [errorProp]: { type: "cancel", cause: error },
+          }));
+        return [...results, errorResult, ...cancelledResults];
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        const unknownErrors = calls.map(() => ({
+          [errorProp]: { type: "unknown", message, cause: error },
+        }));
+        return unknownErrors;
       }
-      return results;
     }
   }
 }
@@ -161,7 +203,7 @@ function isErrorResult(obj: unknown): obj is ErrorResult {
  * import { assertType, IsExact } from "jsr:@std/testing/types";
  * import { Denops } from "jsr:@denops/core";
  * import * as fn from "jsr:@denops/std/function";
- * import { accumulate } from "jsr:@milly/denops-batch-accumulate";
+ * import { accumulate } from "jsr:@milly/denops-batch-accumulate/accumulate";
  *
  * export async function main(denops: Denops): Promise<void> {
  *   const results = await accumulate(denops, async (denops) => {

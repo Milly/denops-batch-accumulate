@@ -1,7 +1,9 @@
 {
   "name": "@milly/denops-batch-accumulate",
   "exports": {
-    ".": "./batch/accumulate.ts"
+    ".": "./batch/mod.ts",
+    "./accumulate": "./batch/accumulate.ts",
+    "./error": "./batch/error.ts"
   },
   "imports": {
     "@denops/core": "jsr:@denops/core@^7.0.0"
