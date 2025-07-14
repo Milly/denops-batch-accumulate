@@ -387,7 +387,16 @@ test({
       "endfunction",
     ]);
 
-    await t.step("if the executor resolves", async (t) => {
+    await t.step("when the executor is not callable", async (t) => {
+      await t.step("rejects an error", async () => {
+        await assertRejects(
+          // deno-lint-ignore no-explicit-any
+          () => accumulate(denops, null as any),
+          TypeError,
+        );
+      });
+    });
+    await t.step("when the executor resolves", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
       await accumulate(denops, (helper) => {
@@ -406,7 +415,7 @@ test({
         await assertRejects(() => p, Error, "not available outside");
       });
     });
-    await t.step("if the executor throws", async (t) => {
+    await t.step("when the executor throws", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
 
@@ -433,7 +442,7 @@ test({
         await assertRejects(() => p, Error, "not available outside");
       });
     });
-    await t.step("if the executor rejects", async (t) => {
+    await t.step("when the executor rejects", async (t) => {
       using denops_batch = spy(denops, "batch");
       let p: Promise<void> = Promise.resolve();
 
@@ -755,7 +764,7 @@ test({
           assertStrictEquals(actual, MY_DISPATCHER);
         });
       });
-      await t.step("if outside of the 'accumulate()' block", async (t) => {
+      await t.step("when outside of the 'accumulate()' block", async (t) => {
         await t.step(".call()", async (t) => {
           using denops_batch = spy(denops, "batch");
           let helper_outside: Denops;
