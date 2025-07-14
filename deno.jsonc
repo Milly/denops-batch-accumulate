@@ -1,21 +1,7 @@
 {
-  "name": "@milly/denops-batch-accumulate",
-  "exports": {
-    ".": "./batch/accumulate.ts"
-  },
   "exclude": [
     ".coverage/"
   ],
-  "publish": {
-    "include": [
-      "LICENSE",
-      "README.md",
-      "**/*.ts"
-    ],
-    "exclude": [
-      "**/*_test.ts"
-    ]
-  },
   "fmt": {
     "exclude": [
       "README.md"
@@ -24,7 +10,7 @@
   "tasks": {
     "check": "deno lint && deno fmt --check && deno check --no-lock **/*.ts",
     "check:doc": "deno test --doc --no-run --no-lock",
-    "check:publish": "deno publish --dry-run --set-version=0.0.0",
+    "check:publish": "deno publish --dry-run --config jsr.jsonc --set-version=0.0.0",
     "bench": "deno bench -A --no-lock",
     "test": "LANG=C deno test -A --doc --parallel --shuffle --no-lock",
     "test:coverage": "LANG=C deno task test --coverage=.coverage",
