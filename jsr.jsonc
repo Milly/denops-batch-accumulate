@@ -1,0 +1,20 @@
+{
+  "name": "@milly/denops-batch-accumulate",
+  "exports": {
+    ".": "./batch/accumulate.ts"
+  },
+  "imports": {
+    "@denops/core": "jsr:@denops/core@^7.0.0"
+  },
+  "publish": {
+    "include": [
+      "LICENSE",
+      "README.md",
+      "**/*.ts"
+    ],
+    "exclude": [
+      "**/*_bench.ts",
+      "**/*_test.ts"
+    ]
+  }
+}
