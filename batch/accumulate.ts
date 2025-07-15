@@ -1,9 +1,7 @@
+import { nextTick } from "node:process";
 import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
 import { BatchError } from "@denops/core";
 
-const MICROTASK_DELAY = 5;
-
-const resolvedPromise = Promise.resolve();
 const errorProp = Symbol("AccumulateErrorResult");
 
 type Call = [string, ...unknown[]];
@@ -64,10 +62,7 @@ class AccumulateHelper implements Denops {
 
   async call(fn: string, ...args: unknown[]): Promise<unknown> {
     this.#ensureAvailable();
-    const callIndex = this.#calls.length;
-    this.#calls.push([fn, ...args]);
-    await this.#waitResolved();
-    const result = this.#results[callIndex];
+    const [result] = await this.#waitResolved([[fn, ...args]]);
     if (isErrorResult(result)) {
       throw new Error(result[errorProp].message);
     }
@@ -76,10 +71,7 @@ class AccumulateHelper implements Denops {
 
   async batch(...calls: Call[]): Promise<unknown[]> {
     this.#ensureAvailable();
-    const callIndex = this.#calls.length;
-    this.#calls.push(...calls);
-    await this.#waitResolved();
-    const results = this.#results.slice(callIndex, callIndex + calls.length);
+    const results = await this.#waitResolved(calls);
     const errorIndex = results.findIndex(isErrorResult);
     if (errorIndex >= 0) {
       const error = (results[errorIndex] as ErrorResult)[errorProp];
@@ -112,21 +104,20 @@ class AccumulateHelper implements Denops {
     }
   }
 
-  #waitResolved(): Promise<void> {
-    const callCount = this.#calls.length;
-    if (callCount === this.#results.length) {
-      return resolvedPromise;
+  async #waitResolved(calls: Call[]): Promise<unknown[]> {
+    if (calls.length === 0) {
+      return [];
     }
-    (async () => {
-      let delay = MICROTASK_DELAY;
-      do {
-        await resolvedPromise;
-        if (callCount !== this.#calls.length) return;
-        --delay;
-      } while (delay > 0);
-      await this.#resolvePendingCalls();
-    })();
-    return this.#resolvedWaiter.promise;
+    const start = this.#calls.length;
+    this.#calls.push(...calls);
+    const end = this.#calls.length;
+    nextTick(() => {
+      if (end === this.#calls.length) {
+        this.#resolvePendingCalls();
+      }
+    });
+    await this.#resolvedWaiter.promise;
+    return this.#results.slice(start, end);
   }
 
   async #resolvePendingCalls(): Promise<void> {
