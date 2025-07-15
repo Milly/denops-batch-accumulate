@@ -684,6 +684,36 @@ test({
             });
           },
         );
+        await t.step(
+          "when new calls are made while underlying 'denops.batch()' executing",
+          async (t) => {
+            using denops_batch = stub(
+              denops,
+              "batch",
+              async (...calls): Promise<unknown[]> => {
+                await delay(10);
+                return await denops_batch.original.apply(denops, calls);
+              },
+            );
+            let preceding: Promise<unknown>;
+            let delayed: Promise<unknown>;
+            await accumulate(denops, async (helper) => {
+              preceding = helper.call("range", 0, 2);
+              delayed = (async () => {
+                await delay(0);
+                return helper.call("range", 1, 3);
+              })();
+              await Promise.allSettled([preceding, delayed]);
+            });
+            assertSpyCalls(denops_batch, 2);
+            await t.step("the preceding call resolves", async () => {
+              assertEquals(await preceding, [0, 1, 2]);
+            });
+            await t.step("the delayed call resolves", async () => {
+              assertEquals(await delayed, [1, 2, 3]);
+            });
+          },
+        );
       });
       await t.step(".cmd()", async (t) => {
         await t.step("executes Vim command", async () => {
