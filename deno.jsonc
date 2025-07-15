@@ -26,6 +26,8 @@
     "@std/async": "jsr:@std/async@^1.0.1",
     "@std/testing": "jsr:@std/testing@^1.0.0",
     // Imports for `--doc` test.
-    "jsr:@milly/denops-batch-accumulate": "./batch/accumulate.ts"
+    "jsr:@milly/denops-batch-accumulate": "./batch/mod.ts",
+    "jsr:@milly/denops-batch-accumulate/accumulate": "./batch/accumulate.ts",
+    "jsr:@milly/denops-batch-accumulate/error": "./batch/error.ts"
   }
 }

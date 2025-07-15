@@ -1,6 +1,7 @@
 import { delay } from "@std/async";
 import {
   assertEquals,
+  assertInstanceOf,
   assertRejects,
   assertStrictEquals,
   assertStringIncludes,
@@ -13,6 +14,7 @@ import { batch, collect } from "@denops/std/batch";
 import { DenopsStub, test } from "@denops/test";
 
 import { accumulate } from "./accumulate.ts";
+import { AccumulateCancelledError } from "./error.ts";
 
 Deno.test("accumulate() resolves", async (t) => {
   const mocked_denops = new DenopsStub();
@@ -537,6 +539,181 @@ test({
             );
           });
         });
+        await t.step(
+          "when an error occurs during parallel execution",
+          async (t) => {
+            let actual: PromiseSettledResult<unknown>[];
+            await accumulate(denops, async (helper) => {
+              actual = await Promise.allSettled([
+                helper.call("range", 1, 3),
+                helper.call("range", 2, 4),
+                helper.call("notexistsfn"),
+                helper.call("range", 0, 2),
+                helper.call("range", 3, 5),
+              ]);
+            });
+            await t.step("calls before the error resolves", () => {
+              assertEquals(actual[0].status, "fulfilled");
+              assertEquals(actual[1].status, "fulfilled");
+              assertEquals(
+                (actual[0] as PromiseFulfilledResult<unknown>).value,
+                [1, 2, 3],
+              );
+              assertEquals(
+                (actual[1] as PromiseFulfilledResult<unknown>).value,
+                [2, 3, 4],
+              );
+            });
+            await t.step("the invalid call rejects the actual error", () => {
+              assertEquals(actual[2].status, "rejected");
+              const error = (actual[2] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, Error);
+              assertStringIncludes(
+                error.message,
+                "Unknown function: notexistsfn",
+              );
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.call",
+              );
+            });
+            await t.step(
+              "calls after the error rejects an AccumulateCancelledError",
+              () => {
+                assertEquals(actual[3].status, "rejected");
+                assertEquals(actual[4].status, "rejected");
+                const error1 = (actual[3] as PromiseRejectedResult).reason;
+                const error2 = (actual[4] as PromiseRejectedResult).reason;
+                assertInstanceOf(error1, AccumulateCancelledError);
+                assertInstanceOf(error2, AccumulateCancelledError);
+                assertStringIncludes(error1.message, "['range', ...]");
+                assertStringIncludes(error2.message, "['range', ...]");
+                assertEquals(error1.calls, [["range", 0, 2]]);
+                assertEquals(error2.calls, [["range", 3, 5]]);
+                assertStringIncludes(
+                  error1.stack ?? "<stack is undefined>",
+                  "AccumulateHelper.call",
+                );
+                assertStringIncludes(
+                  error2.stack ?? "<stack is undefined>",
+                  "AccumulateHelper.call",
+                );
+              },
+            );
+          },
+        );
+        await t.step(
+          "when underlying 'denops.batch()' throws a non-BatchError",
+          async (t) => {
+            const underlyingError = new Error("Network error");
+            using denops_batch = stub(
+              denops,
+              "batch",
+              resolvesNext<unknown[]>([underlyingError]),
+            );
+            let actual: PromiseSettledResult<unknown>[];
+            await accumulate(denops, async (helper) => {
+              actual = await Promise.allSettled([
+                helper.call("range", 0, 2),
+                helper.call("range", 3, 5),
+              ]);
+            });
+            assertSpyCalls(denops_batch, 1);
+            await t.step("the first call rejects the actual error", () => {
+              assertEquals(actual[0].status, "rejected");
+              const error = (actual[0] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, Error);
+              assertEquals(error.message, "Network error");
+              assertStrictEquals(error.cause, underlyingError);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.call",
+              );
+            });
+            await t.step("the second call rejects the actual error", () => {
+              assertEquals(actual[1].status, "rejected");
+              const error = (actual[1] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, Error);
+              assertEquals(error.message, "Network error");
+              assertStrictEquals(error.cause, underlyingError);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.call",
+              );
+            });
+          },
+        );
+        await t.step(
+          "when underlying 'denops.batch()' throws a non-Error",
+          async (t) => {
+            const underlyingError = 42;
+            using denops_batch = stub(
+              denops,
+              "batch",
+              () => Promise.reject(underlyingError),
+            );
+            let actual: PromiseSettledResult<unknown>[];
+            await accumulate(denops, async (helper) => {
+              actual = await Promise.allSettled([
+                helper.call("range", 0, 2),
+                helper.call("range", 3, 5),
+              ]);
+            });
+            assertSpyCalls(denops_batch, 1);
+            await t.step("the first call rejects the actual error", () => {
+              assertEquals(actual[0].status, "rejected");
+              const error = (actual[0] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, Error);
+              assertEquals(error.message, "42");
+              assertStrictEquals(error.cause, underlyingError);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.call",
+              );
+            });
+            await t.step("the second call rejects the actual error", () => {
+              assertEquals(actual[1].status, "rejected");
+              const error = (actual[1] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, Error);
+              assertEquals(error.message, "42");
+              assertStrictEquals(error.cause, underlyingError);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.call",
+              );
+            });
+          },
+        );
+        await t.step(
+          "when new calls are made while underlying 'denops.batch()' executing",
+          async (t) => {
+            using denops_batch = stub(
+              denops,
+              "batch",
+              async (...calls): Promise<unknown[]> => {
+                await delay(10);
+                return await denops_batch.original.apply(denops, calls);
+              },
+            );
+            let preceding: Promise<unknown>;
+            let delayed: Promise<unknown>;
+            await accumulate(denops, async (helper) => {
+              preceding = helper.call("range", 0, 2);
+              delayed = (async () => {
+                await delay(0);
+                return helper.call("range", 1, 3);
+              })();
+              await Promise.allSettled([preceding, delayed]);
+            });
+            assertSpyCalls(denops_batch, 2);
+            await t.step("the preceding call resolves", async () => {
+              assertEquals(await preceding, [0, 1, 2]);
+            });
+            await t.step("the delayed call resolves", async () => {
+              assertEquals(await delayed, [1, 2, 3]);
+            });
+          },
+        );
       });
       await t.step(".cmd()", async (t) => {
         await t.step("executes Vim command", async () => {
@@ -689,6 +866,99 @@ test({
             );
           });
         });
+        await t.step(
+          "when an error occurs during parallel execution",
+          async (t) => {
+            let actual: PromiseSettledResult<unknown>[];
+            await accumulate(denops, async (helper) => {
+              actual = await Promise.allSettled([
+                helper.batch(
+                  ["range", 1, 3],
+                  ["range", 2, 4],
+                ),
+                helper.batch(
+                  ["range", 1, 3],
+                  ["notexistsfn"],
+                  ["range", 2, 4],
+                ),
+                helper.batch(
+                  ["range", 0, 2],
+                  ["range", 3, 5],
+                ),
+              ]);
+            });
+            await t.step("calls before the error resolves", () => {
+              assertEquals(actual[0].status, "fulfilled");
+              assertEquals(
+                (actual[0] as PromiseFulfilledResult<unknown>).value,
+                [[1, 2, 3], [2, 3, 4]],
+              );
+            });
+            await t.step("the invalid call rejects a BatchError", () => {
+              assertEquals(actual[1].status, "rejected");
+              const error = (actual[1] as PromiseRejectedResult).reason;
+              assertInstanceOf(error, BatchError);
+              assertStringIncludes(
+                error.message,
+                "Unknown function: notexistsfn",
+              );
+              assertEquals(error.results, [[1, 2, 3]]);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.batch",
+              );
+            });
+            await t.step(
+              "calls after the error rejects an AccumulateCancelledError",
+              () => {
+                assertEquals(actual[2].status, "rejected");
+                const error = (actual[2] as PromiseRejectedResult).reason;
+                assertInstanceOf(error, AccumulateCancelledError);
+                assertStringIncludes(
+                  error.message,
+                  "[['range', ...], ... total 2 calls]",
+                );
+                assertEquals(error.calls, [["range", 0, 2], ["range", 3, 5]]);
+                assertStringIncludes(
+                  error.stack ?? "<stack is undefined>",
+                  "AccumulateHelper.batch",
+                );
+              },
+            );
+          },
+        );
+        await t.step(
+          "when underlying 'denops.batch()' throws a non-BatchError",
+          async (t) => {
+            const underlyingError = new Error("Network error");
+            using denops_batch = stub(
+              denops,
+              "batch",
+              resolvesNext<unknown[]>([underlyingError]),
+            );
+            let actual: Promise<unknown[]>;
+            await accumulate(denops, async (helper) => {
+              actual = helper.batch(
+                ["range", 1, 3],
+                ["range", 2, 4],
+              );
+              await Promise.allSettled([actual]);
+            });
+            assertSpyCalls(denops_batch, 1);
+            await t.step("rejects the actual error", async () => {
+              const error = await assertRejects(
+                () => actual,
+                Error,
+                "Network error",
+              );
+              assertStrictEquals(error.cause, underlyingError);
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.batch",
+              );
+            });
+          },
+        );
       });
       await t.step(".dispatch()", async (t) => {
         await t.step("calls 'denops.dispatch()'", async () => {
