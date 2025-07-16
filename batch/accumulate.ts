@@ -56,12 +56,8 @@ class AccumulateHelper implements Denops {
     this.#denops.dispatcher = dispatcher;
   }
 
-  redraw(_force?: boolean): Promise<void> {
-    return Promise.reject(
-      new Error(
-        "The 'redraw' method is not available on AccumulateHelper.",
-      ),
-    );
+  async redraw(force?: boolean): Promise<void> {
+    return await this.#denops.redraw(force);
   }
 
   async call(fn: string, ...args: unknown[]): Promise<unknown> {
@@ -247,9 +243,6 @@ function isErrorResult(obj: unknown): obj is ErrorResult {
  * The `denops` instance passed to the `accumulate` block is NOT available
  * outside of the block. An error is thrown when `denops.call()`,
  * `denops.batch()`, `denops.cmd()`, or `denops.eval()` is called.
- *
- * Note that `denops.redraw()` cannot be called within `accumulate()`.
- * If it is called, an error is raised.
  */
 export async function accumulate<T extends unknown>(
   denops: Denops,
