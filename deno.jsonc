@@ -18,6 +18,7 @@
     "coverage:clean": "rm -rf .coverage"
   },
   "imports": {
+    "@core/asyncutil": "jsr:@core/asyncutil@^1.2.0",
     "@denops/core": "jsr:@denops/core@^7.0.0",
     "@denops/std": "jsr:@denops/std@^7.0.0",
     "@denops/test": "jsr:@denops/test@^3.0.1",
