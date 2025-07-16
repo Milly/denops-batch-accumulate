@@ -5,7 +5,7 @@ import { AccumulateCancelledError } from "./error.ts";
 
 const errorProp = Symbol("AccumulateErrorResult");
 
-type Call = [string, ...unknown[]];
+type Call = [fn: string, ...args: unknown[]];
 
 type ErrorResult = {
   [errorProp]:
