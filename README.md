@@ -4,12 +4,13 @@
 [![jsr](https://jsr.io/badges/@milly/denops-batch-accumulate)](https://jsr.io/@milly/denops-batch-accumulate)
 [![codecov](https://codecov.io/gh/Milly/denops-batch-accumulate/graph/badge.svg?token=76N25YHGZO)](https://codecov.io/gh/Milly/denops-batch-accumulate)
 
-denops-batch-accumulate is helper library for [Denops][].
+denops-batch-accumulate is a helper library for [Denops].
 
-`accumulate` aggregates all denops functions called during the current task's
-execution and resolves them in a single RPC call.
+`accumulate()` allows you to write normal async functions while automatically
+batching multiple RPCs that occur at the same timing (during microtask
+processing) into a single RPC call.
 
-Note that functions with side effects should be avoided, and if you do, the
+Note that RPC calls with side effects should be avoided, and if you do, the
 order in which you call them should be carefully considered.
 
 [Denops]: https://github.com/vim-denops/denops.vim
@@ -51,9 +52,20 @@ In the case of the example, the following 3 RPCs are called.
 2. Multiple `matchstr` calls in one RPC.
 3. Multiple `len` calls in one RPC.
 
-## Why use `accumulate()` instead of `collect()` of `@denops/std/batch`?
+## Comparison with other batch functions
 
-The above example can be rewritten using `collect()`, but this is less intuitive
+[`@denops/std`] provides several batch functions with different characteristics:
+
+- [`batch()`]: Does not return results, cannot chain promises
+- [`collect()`]: Returns results in a 1-dimensional array, cannot chain promises
+- `accumulate()` (This library): Allows writing normal async functions with
+  promise chaining, automatically batches RPCs at the same timing
+
+[`@denops/std`]: https://jsr.io/@denops/std
+[`batch()`]: https://jsr.io/@denops/std/doc/batch/~/batch
+[`collect()`]: https://jsr.io/@denops/std/doc/batch/~/collect
+
+The above example can be rewritten using `collect()`, but it is less intuitive
 because you need to get intermediate results when you want to generate a complex
 object as a result.
 
