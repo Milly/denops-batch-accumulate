@@ -18,6 +18,7 @@ class AccumulateHelper implements Denops {
   readonly #denops: Denops;
   readonly #calls: Call[] = [];
   readonly #results: unknown[] = [];
+  readonly #disposer = Promise.withResolvers<void>();
   #closed = false;
   #resolvedWaiter = Promise.withResolvers<void>();
 
@@ -25,11 +26,10 @@ class AccumulateHelper implements Denops {
     this.#denops = denops;
   }
 
-  static async close(helper: AccumulateHelper): Promise<void> {
+  static close(helper: AccumulateHelper): void {
     helper.#closed = true;
-    if (helper.#calls.length > helper.#results.length) {
-      await helper.#resolvedWaiter.promise;
-    }
+    helper.#disposer.promise.catch(() => {/* prevent unhandled rejection */});
+    helper.#disposer.reject();
   }
 
   get name(): string {
@@ -89,6 +89,9 @@ class AccumulateHelper implements Denops {
 
   async batch(...calls: Call[]): Promise<unknown[]> {
     this.#ensureAvailable();
+    if (calls.length === 0) {
+      return [];
+    }
     const results = await this.#waitResolved(calls);
 
     const errorIndex = results.findIndex(isErrorResult);
@@ -136,9 +139,6 @@ class AccumulateHelper implements Denops {
   }
 
   async #waitResolved(calls: Call[]): Promise<unknown[]> {
-    if (calls.length === 0) {
-      return [];
-    }
     const start = this.#calls.length;
     this.#calls.push(...calls);
     const end = this.#calls.length;
@@ -147,7 +147,15 @@ class AccumulateHelper implements Denops {
         this.#resolvePendingCalls();
       }
     });
-    await this.#resolvedWaiter.promise;
+    try {
+      await Promise.race([
+        this.#disposer.promise,
+        this.#resolvedWaiter.promise,
+      ]);
+    } catch {
+      // Rethrow the error if the disposer is rejected.
+      this.#ensureAvailable();
+    }
     return this.#results.slice(start, end);
   }
 
@@ -155,11 +163,13 @@ class AccumulateHelper implements Denops {
     const resultIndex = this.#results.length;
     const calls = this.#calls.slice(resultIndex);
     this.#results.length = this.#calls.length;
-    const resolvedWaiter = this.#resolvedWaiter;
+    const { resolve } = this.#resolvedWaiter;
     this.#resolvedWaiter = Promise.withResolvers();
-    const results = await this.#resolveCalls(calls);
-    this.#results.splice(resultIndex, results.length, ...results);
-    resolvedWaiter.resolve();
+    if (!this.#closed) {
+      const results = await this.#resolveCalls(calls);
+      this.#results.splice(resultIndex, results.length, ...results);
+    }
+    resolve();
   }
 
   async #resolveCalls(calls: Call[]): Promise<unknown[]> {
@@ -249,6 +259,6 @@ export async function accumulate<T extends unknown>(
   try {
     return await executor(helper);
   } finally {
-    await AccumulateHelper.close(helper);
+    AccumulateHelper.close(helper);
   }
 }

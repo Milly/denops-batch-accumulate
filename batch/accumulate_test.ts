@@ -1,3 +1,4 @@
+import { flushPromises, peekPromiseState } from "@core/asyncutil";
 import { delay } from "@std/async";
 import {
   assertEquals,
@@ -7,7 +8,13 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { assertType, type IsExact } from "@std/testing/types";
-import { assertSpyCalls, resolvesNext, spy, stub } from "@std/testing/mock";
+import {
+  assertSpyCallArgs,
+  assertSpyCalls,
+  resolvesNext,
+  spy,
+  stub,
+} from "@std/testing/mock";
 import { DisposableStack } from "@nick/dispose";
 import { BatchError, type Denops } from "@denops/core";
 import { batch, collect } from "@denops/std/batch";
@@ -15,6 +22,10 @@ import { DenopsStub, test } from "@denops/test";
 
 import { accumulate } from "./accumulate.ts";
 import { AccumulateCancelledError } from "./error.ts";
+
+function preventUnhandledRejection(promise: Promise<unknown>): void {
+  promise.catch(() => {/* noop */});
+}
 
 Deno.test("accumulate() resolves", async (t) => {
   const mocked_denops = new DenopsStub();
@@ -384,7 +395,7 @@ Deno.test("accumulate() resolves", async (t) => {
 });
 
 test({
-  mode: "all",
+  mode: "vim",
   name: "accumulate()",
   fn: async (denops, t) => {
     await denops.call("execute", [
@@ -405,77 +416,131 @@ test({
     });
     await t.step("when the executor resolves", async (t) => {
       using denops_batch = spy(denops, "batch");
-      let p: Promise<void> = Promise.resolve();
+      let helperPromise: Promise<unknown>;
       await accumulate(denops, (helper) => {
-        p = (async () => {
-          await helper.call("strlen", "foo");
-          await helper.call("strlen", "bar");
-        })();
+        helperPromise = helper.call("strlen", "foo");
+        preventUnhandledRejection(helperPromise);
       });
 
-      await t.step("calls pending batch 'calls'", () => {
-        assertEquals(denops_batch.calls.map((c) => c.args), [
-          [["strlen", "foo"]],
-        ]);
+      await t.step("rejects pending batch 'calls' immediately", async () => {
+        await flushPromises();
+        assertEquals(await peekPromiseState(helperPromise), "rejected");
+        await assertRejects(
+          () => helperPromise,
+          TypeError,
+          "not available outside",
+        );
       });
-      await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, TypeError, "not available outside");
+      await t.step("does not call underlying 'denops.batch()'", () => {
+        assertSpyCalls(denops_batch, 0);
       });
     });
     await t.step("when the executor throws", async (t) => {
       using denops_batch = spy(denops, "batch");
-      let p: Promise<void> = Promise.resolve();
+      const error = new Error("test error");
+      let helperPromise: Promise<unknown>;
+      const accumulatePromise = accumulate(denops, (helper) => {
+        helperPromise = helper.call("strlen", "foo");
+        preventUnhandledRejection(helperPromise);
+        throw error;
+      });
+      preventUnhandledRejection(accumulatePromise);
+      await flushPromises();
 
-      await t.step("rejects an error", async () => {
+      await t.step("the helper method rejects immediately", async () => {
+        assertEquals(await peekPromiseState(helperPromise), "rejected");
         await assertRejects(
-          () =>
-            accumulate(denops, (helper) => {
-              p = (async () => {
-                await helper.call("strlen", "foo");
-                await helper.call("strlen", "bar");
-              })();
-              throw new Error("test error");
-            }),
-          Error,
-          "test error",
+          () => helperPromise,
+          TypeError,
+          "not available outside",
         );
       });
-      await t.step("calls pending batch 'calls'", () => {
-        assertEquals(denops_batch.calls.map((c) => c.args), [
-          [["strlen", "foo"]],
-        ]);
+      await t.step("rejects the actual error immediately", async () => {
+        assertEquals(await peekPromiseState(accumulatePromise), "rejected");
+        const actual = await assertRejects(() => accumulatePromise);
+        assertStrictEquals(actual, error);
       });
-      await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, TypeError, "not available outside");
+      await t.step("does not call underlying 'denops.batch()'", () => {
+        assertSpyCalls(denops_batch, 0);
       });
     });
     await t.step("when the executor rejects", async (t) => {
       using denops_batch = spy(denops, "batch");
-      let p: Promise<void> = Promise.resolve();
+      const error = new Error("test error");
+      let helperPromise: Promise<unknown>;
+      const accumulatePromise = accumulate(denops, (helper) => {
+        helperPromise = helper.call("strlen", "foo");
+        preventUnhandledRejection(helperPromise);
+        return Promise.reject(error);
+      });
+      preventUnhandledRejection(accumulatePromise);
+      await flushPromises();
 
-      await t.step("rejects an error", async () => {
+      await t.step("the helper method rejects immediately", async () => {
+        assertEquals(await peekPromiseState(helperPromise), "rejected");
         await assertRejects(
-          () =>
-            accumulate(denops, (helper) => {
-              p = (async () => {
-                await helper.call("strlen", "foo");
-                await helper.call("strlen", "bar");
-              })();
-              return Promise.reject(new Error("test error"));
-            }),
-          Error,
-          "test error",
+          () => helperPromise,
+          TypeError,
+          "not available outside",
         );
       });
-      await t.step("calls pending batch 'calls'", () => {
-        assertEquals(denops_batch.calls.map((c) => c.args), [
-          [["strlen", "foo"]],
-        ]);
+      await t.step("rejects the actual error immediately", async () => {
+        assertEquals(await peekPromiseState(accumulatePromise), "rejected");
+        const actual = await assertRejects(() => accumulatePromise);
+        assertStrictEquals(actual, error);
       });
-      await t.step("rejects subsequent batch 'calls'", async () => {
-        await assertRejects(() => p, TypeError, "not available outside");
+      await t.step("does not call underlying 'denops.batch()'", () => {
+        assertSpyCalls(denops_batch, 0);
       });
     });
+    await t.step(
+      "when the executor rejects while underlying 'denops.batch()' executing",
+      async (t) => {
+        using stack = new DisposableStack();
+        const underlyingDenopsWaiter = stack.adopt(
+          Promise.withResolvers<never>(),
+          (t) => t.reject(),
+        );
+        const denops_batch = stack.use(stub(
+          denops,
+          "batch",
+          () => underlyingDenopsWaiter.promise,
+        ));
+        const error = new Error("test error");
+        let helperPromise: Promise<unknown>;
+        const accumulatePromise = accumulate(denops, async (helper) => {
+          helperPromise = helper.call("strlen", "foo");
+          preventUnhandledRejection(helperPromise);
+          await delay(0); // Ensure underlying batch is executing
+          return Promise.reject(error);
+        });
+        await flushPromises();
+
+        await t.step("the helper method rejects immediately", async () => {
+          assertEquals(await peekPromiseState(helperPromise), "rejected");
+          await assertRejects(
+            () => helperPromise,
+            TypeError,
+            "not available outside",
+          );
+        });
+        await t.step("rejects the actual error immediately", async () => {
+          assertEquals(await peekPromiseState(accumulatePromise), "rejected");
+          const actual = await assertRejects(() => accumulatePromise);
+          assertStrictEquals(actual, error);
+        });
+        await t.step("calls underlying 'denops.batch()'", () => {
+          assertSpyCalls(denops_batch, 1);
+          assertSpyCallArgs(denops_batch, 0, [["strlen", "foo"]]);
+        });
+        await t.step("the underlying rejection should handled", async () => {
+          underlyingDenopsWaiter.reject(
+            new Error("This error should be ignored"),
+          );
+          await flushPromises();
+        });
+      },
+    );
     await t.step("AccumulateHelper", async (t) => {
       await t.step(".redraw()", async (t) => {
         await t.step("rejects an error", async (t) => {
@@ -700,7 +765,7 @@ test({
             await accumulate(denops, async (helper) => {
               preceding = helper.call("range", 0, 2);
               delayed = (async () => {
-                await delay(0);
+                await delay(0); // Ensure underlying batch is executing
                 return helper.call("range", 1, 3);
               })();
               await Promise.allSettled([preceding, delayed]);
