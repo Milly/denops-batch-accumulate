@@ -5,7 +5,7 @@ import { AccumulateCancelledError } from "./error.ts";
 
 const errorProp = Symbol("AccumulateErrorResult");
 
-type Call = [string, ...unknown[]];
+type Call = [fn: string, ...args: unknown[]];
 
 type ErrorResult = {
   [errorProp]:
@@ -56,12 +56,8 @@ class AccumulateHelper implements Denops {
     this.#denops.dispatcher = dispatcher;
   }
 
-  redraw(_force?: boolean): Promise<void> {
-    return Promise.reject(
-      new Error(
-        "The 'redraw' method is not available on AccumulateHelper.",
-      ),
-    );
+  async redraw(force?: boolean): Promise<void> {
+    return await this.#denops.redraw(force);
   }
 
   async call(fn: string, ...args: unknown[]): Promise<unknown> {
@@ -206,9 +202,16 @@ function isErrorResult(obj: unknown): obj is ErrorResult {
 }
 
 /**
- * Aggregates all denops functions called during the current task's execution
- * and resolves them in a single RPC call.
+ * Runs an `executor` function while automatically batching multiple RPCs.
  *
+ * `accumulate()` allows you to write normal async functions while automatically
+ * batching multiple RPCs that occur at the same timing (during microtask
+ * processing) into a single RPC call.
+ *
+ * Note that RPC calls with side effects should be avoided, and if you do, the
+ * order in which you call them should be carefully considered.
+ *
+ * @example
  * ```typescript
  * import { assertType, IsExact } from "jsr:@std/testing/types";
  * import { Denops } from "jsr:@denops/core";
@@ -244,12 +247,11 @@ function isErrorResult(obj: unknown): obj is ErrorResult {
  * 2. Multiple `matchstr` calls in one RPC.
  * 3. Multiple `len` calls in one RPC.
  *
- * The `denops` instance passed to the `accumulate` block is NOT available
- * outside of the block. An error is thrown when `denops.call()`,
- * `denops.batch()`, `denops.cmd()`, or `denops.eval()` is called.
- *
- * Note that `denops.redraw()` cannot be called within `accumulate()`.
- * If it is called, an error is raised.
+ * @remarks
+ * The `denops` instance passed as the argument to the `executor` function is
+ * only valid within the `accumulate()` block. Attempting to use it outside the
+ * block will result in an error when calling `denops.call()`, `denops.batch()`,
+ * `denops.cmd()`, or `denops.eval()`.
  */
 export async function accumulate<T extends unknown>(
   denops: Denops,

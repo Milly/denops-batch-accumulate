@@ -543,20 +543,38 @@ test({
     );
     await t.step("AccumulateHelper", async (t) => {
       await t.step(".redraw()", async (t) => {
-        await t.step("rejects an error", async (t) => {
-          let error: Error;
+        await t.step("call underlying 'denops.redraw()'", async () => {
+          using denops_redraw = stub(
+            denops,
+            "redraw",
+            (): Promise<void> => denops_redraw.original.call(denops),
+          );
           await accumulate(denops, async (helper) => {
-            error = await assertRejects(
-              () => helper.redraw(),
-              Error,
-              "method is not available",
-            );
+            await helper.redraw();
           });
-          await t.step("with the stack trace contains the call site", () => {
-            assertStringIncludes(
-              error.stack ?? "<stack is undefined>",
-              "AccumulateHelper.redraw",
+          assertSpyCalls(denops_redraw, 1);
+        });
+        await t.step("when underlying 'denops.redraw()' rejects", async (t) => {
+          await t.step("rejects an error", async (t) => {
+            using _denops_redraw = stub(
+              denops,
+              "redraw",
+              (): Promise<void> => Promise.reject(new Error("Network error")),
             );
+            let error: Error;
+            await accumulate(denops, async (helper) => {
+              error = await assertRejects(
+                () => helper.redraw(),
+                Error,
+                "Network error",
+              );
+            });
+            await t.step("with the stack trace contains the call site", () => {
+              assertStringIncludes(
+                error.stack ?? "<stack is undefined>",
+                "AccumulateHelper.redraw",
+              );
+            });
           });
         });
       });
