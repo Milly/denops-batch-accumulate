@@ -14,6 +14,7 @@ defaults:
 jobs:
   bench:
     strategy:
+      fail-fast: false
       matrix:
         runner:
           - ubuntu-latest
