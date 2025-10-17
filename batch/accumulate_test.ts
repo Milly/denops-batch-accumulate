@@ -395,7 +395,7 @@ Deno.test("accumulate() resolves", async (t) => {
 });
 
 test({
-  mode: "vim",
+  mode: "all",
   name: "accumulate()",
   fn: async (denops, t) => {
     await denops.call("execute", [
