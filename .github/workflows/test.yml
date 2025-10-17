@@ -136,7 +136,7 @@ jobs:
       - name: Perform pre-cache
         run: |
           (cd ${DENOPS_TEST_DENOPS_PATH} && deno cache denops/@denops-private/mod.ts)
-          deno cache ./batch/accumulate_test.ts
+          deno test --no-lock --no-run
 
       - name: Run tests
         run: deno task test:coverage

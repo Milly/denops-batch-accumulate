@@ -81,7 +81,7 @@ jobs:
       - name: Perform pre-cache
         run: |
           (cd ${DENOPS_TEST_DENOPS_PATH} && deno cache denops/@denops-private/mod.ts)
-          deno cache ./batch/accumulate_bench.ts
+          deno bench --no-lock --no-run
 
       - name: Run benchmark
         run: deno task bench
