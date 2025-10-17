@@ -43,6 +43,9 @@ jobs:
       - name: Check
         run: deno task check
 
+      - name: Check doc
+        run: deno task check:doc
+
   check-publish:
     needs: check
     strategy:
