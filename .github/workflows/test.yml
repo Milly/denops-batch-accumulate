@@ -20,6 +20,7 @@ defaults:
 jobs:
   check:
     strategy:
+      fail-fast: false
       matrix:
         runner:
           - ubuntu-latest
@@ -42,9 +43,13 @@ jobs:
       - name: Check
         run: deno task check
 
+      - name: Check doc
+        run: deno task check:doc
+
   check-publish:
     needs: check
     strategy:
+      fail-fast: false
       matrix:
         runner:
           - ubuntu-latest
@@ -64,6 +69,7 @@ jobs:
   test:
     needs: check
     strategy:
+      fail-fast: false
       matrix:
         runner:
           - ubuntu-latest
@@ -116,7 +122,8 @@ jobs:
 
       - name: Perform pre-cache
         run: |
-          deno cache ${DENOPS_TEST_DENOPS_PATH}/denops/@denops-private/mod.ts ./batch/accumulate_test.ts
+          (cd ${DENOPS_TEST_DENOPS_PATH} && deno cache denops/@denops-private/mod.ts)
+          deno cache ./batch/accumulate_test.ts
 
       - name: Run tests
         run: deno task test:coverage

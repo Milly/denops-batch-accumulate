@@ -1,4 +1,4 @@
-import { assertType, type IsExact } from "jsr:@std/testing/types";
+import { assertType, type IsExact } from "@std/testing/types";
 import type { Denops } from "@denops/core";
 import * as fn from "@denops/std/function";
 import { withDenops } from "@denops/test";
