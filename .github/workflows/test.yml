@@ -75,11 +75,24 @@ jobs:
           - ubuntu-latest
         deno_version:
           - "1.45.0"
-          - "1.x"
+          - "2.3.0"
           - "2.x"
         host_version:
-          - vim: "v9.1.0448"
+          - id: min-supported
+            vim: "v9.1.0448"
             nvim: "v0.10.0"
+            denops: "v7.1.0"
+          - id: latest
+            vim: "v9.1.1646"
+            nvim: "v0.11.3"
+            denops: "main"
+        exclude:
+          - deno_version: "1.45.0"
+            host_version:
+              id: latest
+          - deno_version: "2.3.0"
+            host_version:
+              id: min-supported
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -95,7 +108,7 @@ jobs:
 
       - name: Get denops
         run: |
-          git clone https://github.com/vim-denops/denops.vim /tmp/denops.vim
+          git clone --depth 1 --branch "${{ matrix.host_version.denops }}" https://github.com/vim-denops/denops.vim /tmp/denops.vim
           echo "DENOPS_TEST_DENOPS_PATH=/tmp/denops.vim" >> "$GITHUB_ENV"
 
       - uses: rhysd/action-setup-vim@v1
@@ -123,7 +136,7 @@ jobs:
       - name: Perform pre-cache
         run: |
           (cd ${DENOPS_TEST_DENOPS_PATH} && deno cache denops/@denops-private/mod.ts)
-          deno cache ./batch/accumulate_test.ts
+          deno test --no-lock --no-run
 
       - name: Run tests
         run: deno task test:coverage
