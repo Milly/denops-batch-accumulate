@@ -6,7 +6,7 @@
     "./error": "./batch/error.ts"
   },
   "imports": {
-    "@denops/core": "jsr:@denops/core@^7.0.0"
+    "@denops/core": "jsr:@denops/core@^8.0.1"
   },
   "publish": {
     "include": [
