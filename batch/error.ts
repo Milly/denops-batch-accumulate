@@ -1,7 +1,7 @@
-/**
- * Represents information about a Vim/Neovim function call.
- */
-export type Call = readonly [fn: string, ...args: unknown[]];
+import type { Call } from "@denops/core/type";
+
+// Re-export Call type for backward compatibility.
+export type { Call };
 
 /**
  * Options for creating an {@linkcode AccumulateCancelledError}.

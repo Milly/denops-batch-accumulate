@@ -1,11 +1,9 @@
 import { nextTick } from "node:process";
-import type { Context, Denops, Dispatcher, Meta } from "@denops/core";
+import type { Call, Context, Denops, Dispatcher, Meta } from "@denops/core";
 import { BatchError } from "@denops/core";
 import { AccumulateCancelledError } from "./error.ts";
 
 const errorProp = Symbol("AccumulateErrorResult");
-
-type Call = [fn: string, ...args: unknown[]];
 
 type ErrorResult = {
   [errorProp]:
